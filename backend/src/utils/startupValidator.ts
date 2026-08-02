@@ -7,7 +7,6 @@ export function validateStartup() {
     'ASSISTANT_NVIDIA_API_KEY',
     'PINECONE_API_KEY',
     'FIREBASE_SERVICE_ACCOUNT_BASE64',
-    'MAIN_BACKEND_URL',
     'TRACKING_TOKEN_SECRET'
   ];
 
