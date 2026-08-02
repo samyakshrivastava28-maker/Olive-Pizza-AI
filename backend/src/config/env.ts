@@ -54,7 +54,7 @@ const envSchema = z.object({
   TELEMETRY_ENABLED: z.string().default('true'),
 
   // Automatic Email Alerts
-  DEVELOPER_EMAIL: z.string().default('developer@olivepizza.com'),
+  DEVELOPER_EMAIL: z.string().default('webhub2811@gmail.com'),
   OWNER_EMAIL: z.string().default('owner@olivepizza.com'),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.string().default('587'),

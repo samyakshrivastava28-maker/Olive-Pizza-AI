@@ -202,25 +202,30 @@ export async function sendProductionErrorAlert(params: {
 
   incidentRateLimitMap.set(incidentKey, now);
 
-  // Attempt Dispatch
+  // Attempt Dispatch via Main Olive Pizza Backend
   let status: SentAlertRecord['status'] = 'delivered_simulated';
-  if (env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS) {
-    try {
-      // In production with SMTP configured
+  try {
+    const backendUrl = env.OLIVE_PIZZA_BACKEND_URL || 'https://olive-pizza-backend.onrender.com';
+    const response = await fetch(`${backendUrl}/api/email/ai-alert`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: recipients,
+        subject,
+        htmlBody
+      })
+    });
+
+    if (response.ok) {
       status = 'delivered';
-      console.log(`📧 Dispatched real SMTP alert to: ${recipients.join(', ')}`);
-    } catch {
+      console.log(`📧 Dispatched production alert via Main Backend to: ${recipients.join(', ')}`);
+    } else {
+      console.warn(`⚠️ Failed to dispatch alert via Main Backend (Status: ${response.status})`);
       status = 'failed';
     }
-  } else {
-    // Development / Simulated mode: cleanly logs dispatch
-    console.log(`\n================================================================`);
-    console.log(`📧 [AUTOMATIC PRODUCTION EMAIL ALERT DISPATCHED]`);
-    console.log(`  To      : ${recipients.join(', ')}`);
-    console.log(`  Subject : ${subject}`);
-    console.log(`  Incident: ${incident.id} | ${incident.errorName}: ${incident.errorMessage}`);
-    console.log(`  Recovery: ${incident.recoveryResult}`);
-    console.log(`================================================================\n`);
+  } catch (err: any) {
+    console.warn(`⚠️ Failed to dispatch alert via Main Backend: ${err.message}`);
+    status = 'failed';
   }
 
   const alertRecord: SentAlertRecord = {
