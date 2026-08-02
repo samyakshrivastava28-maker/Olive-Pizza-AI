@@ -309,5 +309,16 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }
   },
 
-  clearError: () => set({ isThinking: false, thinkingStage: null }),
+  clearError: () => set((s) => {
+    const messages = [...s.messages];
+    const lastIdx = messages.length - 1;
+    if (messages[lastIdx]?.isStreaming) {
+      messages[lastIdx] = {
+        ...messages[lastIdx],
+        isStreaming: false,
+        content: "⚠️ Network Error: Unable to reach the AI Backend. If you are on Vercel, please check your VITE_API_URL and ensure your domain is added to the backend's CORS_ORIGIN environment variable on Render."
+      };
+    }
+    return { isThinking: false, thinkingStage: null, messages };
+  }),
 }));

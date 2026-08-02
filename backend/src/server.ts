@@ -14,15 +14,26 @@ app.use(helmet({ crossOriginEmbedderPolicy: false }));
 // ── CORS ───────────────────────────────────────────────────────────────────────
 app.use(
   cors({
-    origin: [
-      env.CORS_ORIGIN,
-      'http://localhost:5173',
-      'http://localhost:5174',
-      'http://localhost:5175',
-      'http://localhost:3050',
-      'http://localhost:3000',
-      'https://olive-pizza.vercel.app',
-    ],
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      
+      const allowedOrigins = [
+        env.CORS_ORIGIN,
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'http://localhost:5175',
+        'http://localhost:3050',
+        'http://localhost:3000',
+        'https://olive-pizza.vercel.app',
+      ];
+      
+      // Allow any Vercel deployment dynamically
+      if (origin.endsWith('.vercel.app') || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Olive-SDK-Version', 'X-Request-ID', 'X-API-Key'],
     credentials: true,
