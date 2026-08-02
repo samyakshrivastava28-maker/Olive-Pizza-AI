@@ -68,9 +68,23 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 import { knowledgeSyncService } from './services/ai/knowledgeSyncService';
 import { localKnowledgeEngine } from './services/retrieval/localKnowledgeEngine';
+import { validateStartup } from './utils/startupValidator';
+
+// ── Global Error Handlers ──────────────────────────────────────────────────────
+process.on('uncaughtException', (err) => {
+  console.error('💥 [Uncaught Exception] Shutting down gracefully...', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 [Unhandled Rejection] at:', promise, 'reason:', reason);
+  // Do not exit immediately, but log it critically
+});
 
 // ── Start ──────────────────────────────────────────────────────────────────────
 const server = app.listen(env.PORT, async () => {
+  validateStartup();
+
   console.log(`
 🍕 Olive AI Assistant V2 API Gateway
 ──────────────────────────────────────────
@@ -87,5 +101,24 @@ const server = app.listen(env.PORT, async () => {
   // Start background live sync
   knowledgeSyncService.startSync();
 });
+
+// ── Graceful Shutdown ──────────────────────────────────────────────────────────
+function gracefulShutdown(signal: string) {
+  console.log(`\n🛑 Received ${signal}. Closing HTTP server...`);
+  server.close(() => {
+    console.log('✅ HTTP server closed.');
+    knowledgeSyncService.stopSync();
+    process.exit(0);
+  });
+
+  // Force close if it takes too long
+  setTimeout(() => {
+    console.error('⚠️ Could not close connections in time, forcefully shutting down');
+    process.exit(1);
+  }, 10000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 export default app;

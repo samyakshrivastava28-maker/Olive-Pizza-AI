@@ -19,11 +19,17 @@ import {
   handleGetAlerts,
   handleTestAlert,
 } from '../controllers/chatController';
+import { getHealth, receiveHeartbeat } from '../controllers/healthController';
 import { promptInjectionGuard } from '../middleware/auth';
 
 export const apiRouter = Router();
 
 // ── Official AI Gateway Endpoints ─────────────────────────────────────────────
+
+// 0. Health & Telemetry
+apiRouter.get('/health', getHealth);
+apiRouter.get('/ai/health', handleHealthCheck);
+apiRouter.post('/internal/heartbeat', receiveHeartbeat);
 
 // 1. Chat Stream (SSE) with Multi-LLM Intent Routing
 apiRouter.post('/chat', promptInjectionGuard, handleChatStream);
