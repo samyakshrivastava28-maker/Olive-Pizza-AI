@@ -5,6 +5,7 @@ npm-debug.log*
 # Node
 node_modules
 dist
+package-lock.json
 
 # Environment variables
 .env
