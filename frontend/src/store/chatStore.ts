@@ -296,10 +296,16 @@ export const useChatStore = create<ChatStore>()(
       /* Handled locally */
     }
 
-    // Dispatch DOM event for host website
+    // Dispatch DOM event for host website (if not embedded)
     window.dispatchEvent(
       new CustomEvent('olive-ai-action', { detail: action, bubbles: true }),
     );
+
+    // If embedded via iframe, dispatch to parent window
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'OLIVE_AI_ACTION', payload: action }, '*');
+    }
+
     console.log('🎬 AI Action executed & dispatched:', normType, action.payload);
   },
 

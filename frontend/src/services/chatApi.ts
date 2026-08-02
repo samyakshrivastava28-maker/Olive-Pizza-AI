@@ -28,6 +28,9 @@ export async function streamChat(
   const decoder = new TextDecoder();
   let buffer = '';
 
+  const accumulatedActions: WebsiteAction[] = [];
+  const accumulatedCards: any[] = []; // Using any to avoid type errors with ProductCard if it's not imported
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -46,7 +49,7 @@ export async function streamChat(
           type: string;
           data: Record<string, unknown>;
         };
-        handleSSEEvent(event);
+        handleSSEEvent(event, accumulatedActions, accumulatedCards);
       } catch {
         /* skip malformed */
       }
@@ -54,7 +57,11 @@ export async function streamChat(
   }
 }
 
-function handleSSEEvent(event: { type: string; data: Record<string, unknown> }): void {
+function handleSSEEvent(
+  event: { type: string; data: Record<string, unknown> },
+  accumulatedActions: WebsiteAction[],
+  accumulatedCards: any[]
+): void {
   const store = useChatStore.getState();
 
   switch (event.type) {
@@ -71,11 +78,13 @@ function handleSSEEvent(event: { type: string; data: Record<string, unknown> }):
       break;
 
     case 'action':
-      store.executeAction(event.data as unknown as WebsiteAction);
+      const action = event.data as unknown as WebsiteAction;
+      accumulatedActions.push(action);
+      store.executeAction(action);
       break;
 
     case 'product_card':
-      // Handled during finalize
+      accumulatedCards.push(event.data);
       break;
 
     case 'telemetry':
@@ -85,8 +94,8 @@ function handleSSEEvent(event: { type: string; data: Record<string, unknown> }):
     case 'done':
       store.finalizeMessage(
         { provider: event.data.provider as string, latencyMs: event.data.latencyMs as number },
-        [],
-        [],
+        accumulatedActions,
+        accumulatedCards,
       );
       break;
 
