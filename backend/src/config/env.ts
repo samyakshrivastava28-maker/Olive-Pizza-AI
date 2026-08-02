@@ -23,7 +23,7 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
 
   // Olive Pizza Backend Single Source of Truth URL
-  OLIVE_PIZZA_BACKEND_URL: z.string().default('https://olive-pizza.vercel.app'),
+  OLIVE_PIZZA_BACKEND_URL: z.string().default('https://olive-pizza-backend.onrender.com'),
 
   // AI Keys - Dedicated Assistant
   ASSISTANT_NVIDIA_API_KEY: z.string().default(''),
