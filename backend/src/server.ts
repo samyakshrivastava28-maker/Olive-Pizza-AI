@@ -69,6 +69,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 import { knowledgeSyncService } from './services/ai/knowledgeSyncService';
 import { localKnowledgeEngine } from './services/retrieval/localKnowledgeEngine';
 import { validateStartup } from './utils/startupValidator';
+import { SelfKeepAliveJob } from './jobs/SelfKeepAliveJob';
 
 // ── Global Error Handlers ──────────────────────────────────────────────────────
 process.on('uncaughtException', (err) => {
@@ -100,6 +101,9 @@ const server = app.listen(env.PORT, async () => {
 
   // Start background live sync
   knowledgeSyncService.startSync();
+
+  // Start Self-Pinging Keep-Alive Job
+  SelfKeepAliveJob.schedule();
 });
 
 // ── Graceful Shutdown ──────────────────────────────────────────────────────────
