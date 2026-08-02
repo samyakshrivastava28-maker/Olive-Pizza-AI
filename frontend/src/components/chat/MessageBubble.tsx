@@ -160,7 +160,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                 }}
               >
                 <span>⚡</span>
-                <span>{action.description || action.type.replace(/_/g, ' ')}</span>
+                <span>{action.description || action.type?.replace(/_/g, ' ') || 'Action'}</span>
               </motion.button>
             ))}
           </div>

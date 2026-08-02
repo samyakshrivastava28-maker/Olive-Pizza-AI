@@ -202,25 +202,16 @@ export async function sendProductionErrorAlert(params: {
 
   incidentRateLimitMap.set(incidentKey, now);
 
-  // Attempt Dispatch via Main Olive Pizza Backend
+  // Attempt Dispatch via Main Olive Pizza Backend (signed request)
   let status: SentAlertRecord['status'] = 'delivered_simulated';
   try {
-    const backendUrl = env.OLIVE_PIZZA_BACKEND_URL || 'https://olive-pizza-backend.onrender.com';
-    const response = await fetch(`${backendUrl}/api/email/ai-alert`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to: recipients,
-        subject,
-        htmlBody
-      })
-    });
-
-    if (response.ok) {
+    const { mainBackendClient } = await import('../integration/mainBackendClient');
+    const delivered = await mainBackendClient.relayAlert(recipients, subject, htmlBody);
+    if (delivered) {
       status = 'delivered';
       console.log(`📧 Dispatched production alert via Main Backend to: ${recipients.join(', ')}`);
     } else {
-      console.warn(`⚠️ Failed to dispatch alert via Main Backend (Status: ${response.status})`);
+      console.warn(`⚠️ Failed to dispatch alert via Main Backend`);
       status = 'failed';
     }
   } catch (err: any) {

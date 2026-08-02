@@ -2,6 +2,9 @@ import cron from 'node-cron';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { env } from '../config/env';
+import { mainBackendClient } from '../services/integration/mainBackendClient';
+
+const AI_VERSION = '2.0.0'; // Keep in sync with root package.json
 
 export class SelfKeepAliveJob {
   private static retryCount = 0;
@@ -30,9 +33,8 @@ export class SelfKeepAliveJob {
       .digest('hex');
 
     try {
-      // Self-ping to the internal route using the localhost port
+      // 1. Self-ping to keep Render from sleeping
       const url = `http://localhost:${env.PORT}/api/internal/keep-alive`;
-      
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -45,6 +47,9 @@ export class SelfKeepAliveJob {
 
       console.log(`💓 [Self-Ping] Successfully kept the service alive.`);
       SelfKeepAliveJob.retryCount = 0; // Reset on success
+
+      // 2. Report heartbeat to Main Backend (non-blocking, fire-and-forget)
+      mainBackendClient.reportHeartbeat(AI_VERSION, 0, {}).catch(() => {});
 
     } catch (error: any) {
       console.warn(`⚠️ [Self-Ping] Ping failed: ${error.message}`);

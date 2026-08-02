@@ -310,7 +310,15 @@ export async function handleChatStream(req: Request, res: Response): Promise<voi
     for (const action of actions) {
       if (!isClientConnected) break;
       const executed = await executeToolAction(action, userAuthToken);
-      sendSSE(res, { type: 'action', data: executed });
+      sendSSE(res, { 
+        type: 'action', 
+        data: {
+          ...action,
+          executionSuccess: executed.success,
+          resultData: executed.resultData,
+          message: executed.message
+        } 
+      });
     }
 
     // ── Step 8: Emit real product cards (verified IDs only) ──
