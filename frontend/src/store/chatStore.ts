@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -130,8 +131,10 @@ interface ChatStore {
 }
 
 // ── Store ────────────────────────────────────────────────────────────────────
-export const useChatStore = create<ChatStore>((set, get) => ({
-  sessionId: uuidv4(),
+export const useChatStore = create<ChatStore>()(
+  persist(
+    (set, get) => ({
+      sessionId: uuidv4(),
   conversations: [],
   activeConversationId: null,
   messages: [],
@@ -277,6 +280,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       set({ websiteContext: { ...currentCtx, appliedCoupons: coupons } });
     } else if (normType === 'REMOVE_COUPON') {
       set({ websiteContext: { ...currentCtx, appliedCoupons: [] } });
+    } else if (normType === 'NAVIGATE_PAGE') {
+      // Allow AI to trigger page navigation in the host app
+      set({ websiteContext: { ...currentCtx, currentPage: String(action.payload.url || action.payload.page || '/') } });
     }
 
     // Call backend action executor
@@ -321,4 +327,17 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }
     return { isThinking: false, thinkingStage: null, messages };
   }),
-}));
+    }),
+    {
+      name: 'olive-ai-chat-storage', // name of the item in the storage (must be unique)
+      storage: createJSONStorage(() => sessionStorage), // (optional) by default, 'localStorage' is used
+      partialize: (state) => ({ 
+        messages: state.messages, 
+        conversations: state.conversations, 
+        activeConversationId: state.activeConversationId, 
+        sessionId: state.sessionId,
+        websiteContext: state.websiteContext
+      }), // Only persist these keys
+    }
+  )
+);

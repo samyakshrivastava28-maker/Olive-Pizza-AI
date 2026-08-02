@@ -11,7 +11,26 @@ const queryClient = new QueryClient({
   },
 });
 
+import { useEffect } from 'react';
+import { useChatStore } from './store/chatStore';
+
 function App() {
+  const setWebsiteContext = useChatStore((s) => s.setWebsiteContext);
+
+  useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'OLIVE_AI_AUTH_SYNC') {
+        setWebsiteContext({
+          isAuthenticated: e.data.payload.isAuthenticated,
+          userId: e.data.payload.userId,
+          userEmail: e.data.payload.userEmail,
+          userName: e.data.payload.userName,
+        });
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [setWebsiteContext]);
   return (
     <QueryClientProvider client={queryClient}>
       {/* Full-screen dark layout */}
