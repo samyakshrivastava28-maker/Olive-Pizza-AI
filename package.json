@@ -1,0 +1,32 @@
+{
+  "name": "olive-pizza-ai",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Olive Pizza AI Assistant V2 — Production Standalone AI & SDK Monorepo",
+  "workspaces": [
+    "backend",
+    "frontend",
+    "sdk"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev:sdk": "npm run dev --prefix sdk",
+    "build": "npm run build --prefix backend && npm run build --prefix frontend && npm run build --prefix sdk",
+    "build:backend": "npm run build --prefix backend",
+    "build:frontend": "npm run build --prefix frontend",
+    "build:sdk": "npm run build --prefix sdk",
+    "test": "node verify_all.cjs"
+  },
+  "keywords": [
+    "olive-pizza",
+    "ai-assistant",
+    "rag",
+    "pinecone",
+    "gemini",
+    "nvidia"
+  ],
+  "author": "Olive Pizza",
+  "license": "MIT"
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@olive-ai/sdk",
+  "version": "2.0.0",
+  "description": "Official TypeScript SDK for Olive AI Assistant — Integration with Olive Pizza Client Web App",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch"
+  },
+  "keywords": ["olive-pizza", "ai-sdk", "assistant", "rag"],
+  "author": "Olive AI Engineering",
+  "license": "MIT",
+  "dependencies": {
+    "eventsource": "^2.0.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "tsup": "^8.0.0"
+  }
+}

@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: olive-pizza-ai-backend
+    env: node
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MAIN_BACKEND_URL
+        value: https://olive-pizza-backend.onrender.com
+      - key: CORS_ORIGIN
+        sync: false
+      - key: ASSISTANT_NVIDIA_API_KEY
+        sync: false
+      - key: ASSISTANT_GEMINI_API_KEY
+        sync: false
+      - key: ASSISTANT_OPENROUTER_API_KEY
+        sync: false
+      - key: PINECONE_API_KEY
+        sync: false
+      - key: PINECONE_INDEX_HOST
+        sync: false
+      - key: PINECONE_INDEX_NAME
+        value: olive-pizza
+      - key: FIREBASE_SERVICE_ACCOUNT_BASE64
+        sync: false

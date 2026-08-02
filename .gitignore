@@ -1,0 +1,19 @@
+# Logs
+*.log
+npm-debug.log*
+
+# Node
+node_modules
+dist
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+
+# IDE
+.vscode
+.idea
