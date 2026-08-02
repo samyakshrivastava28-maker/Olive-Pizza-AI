@@ -302,9 +302,16 @@ export const useChatStore = create<ChatStore>()(
       new CustomEvent('olive-ai-action', { detail: action, bubbles: true }),
     );
 
-    // If embedded via iframe, dispatch to parent window
+    // If embedded via iframe (running inside the main app), dispatch to parent
     if (window.parent !== window) {
       window.parent.postMessage({ type: 'OLIVE_AI_ACTION', payload: action }, '*');
+    }
+
+    // Also target the embedded olive-pizza-frame iframe directly (split-screen mode)
+    const oliveFrame = document.getElementById('olive-pizza-frame') as HTMLIFrameElement | null;
+    if (oliveFrame?.contentWindow) {
+      const targetOrigin = import.meta.env?.VITE_OLIVE_PIZZA_URL || 'https://olive-pizza.vercel.app';
+      oliveFrame.contentWindow.postMessage({ type: 'OLIVE_AI_ACTION', payload: action }, targetOrigin);
     }
 
     console.log('🎬 AI Action executed & dispatched:', normType, action.payload);

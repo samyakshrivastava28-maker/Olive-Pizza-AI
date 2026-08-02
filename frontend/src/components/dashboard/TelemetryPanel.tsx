@@ -2,8 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useChatStore } from '../../store/chatStore';
 
+// Only these developers can see the Telemetry/Diagnostics panel
+const DEVELOPER_WHITELIST = ['webhub2811@gmail.com', 'olivepizzarjn@gmail.com'];
+
 export function TelemetryPanel() {
   const { isTelemetryOpen, telemetry, websiteContext, messages } = useChatStore();
+
+  // ─── RBAC: Developer-only access ────────────────────────────────────────────
+  const isDeveloper = DEVELOPER_WHITELIST.includes(websiteContext?.userEmail || '');
+  if (!isDeveloper) {
+    return null; // Completely hidden from non-developers
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   const [activeTab, setActiveTab] = useState<'metrics' | 'diagnostics' | 'models' | 'context' | 'actions' | 'health' | 'integration' | 'alerts'>('metrics');
   const [ping, setPing] = useState<number | null>(null);
   const [alerts, setAlerts] = useState<any[]>([]);

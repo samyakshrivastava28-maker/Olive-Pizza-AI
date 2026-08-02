@@ -12,8 +12,8 @@ const SUGGESTIONS = [
   { icon: '🔥', text: 'Most popular items' },
 ];
 
-export function ChatContainer() {
-  const { messages, isThinking, thinkingStage, thinkingLabel, isSidebarOpen, isTelemetryOpen } = useChatStore();
+export function ChatContainer({ onOpenWebsite }: { onOpenWebsite?: () => void }) {
+  const { messages, isThinking, thinkingStage, thinkingLabel, isSidebarOpen } = useChatStore();
   const bottomRef = useRef<HTMLDivElement>(null);
   const [showWelcome, setShowWelcome] = useState(true);
 
@@ -41,7 +41,7 @@ export function ChatContainer() {
         position: 'relative',
         overflow: 'hidden',
         marginLeft: isSidebarOpen ? 280 : 0,
-        marginRight: isTelemetryOpen ? 300 : 0,
+        marginRight: 0,
         transition: 'margin 0.3s ease',
         background: 'var(--bg-base)',
       }}
