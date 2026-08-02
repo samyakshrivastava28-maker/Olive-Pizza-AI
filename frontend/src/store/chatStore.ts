@@ -75,6 +75,7 @@ export interface WebsiteContext {
   cartItems?: any[];
   userId?: string;
   userEmail?: string;
+  userName?: string;
   userRole?: string;
   isAuthenticated?: boolean;
   appliedCoupons?: string[];
