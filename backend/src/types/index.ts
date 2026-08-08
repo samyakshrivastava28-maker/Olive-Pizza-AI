@@ -155,12 +155,19 @@ export interface LLMResponse {
 // Embedding Types
 // ─────────────────────────────────────────────
 export type EmbeddingProvider =
-  | 'bge-m3'
   | 'nv-embedcode-7b-v1'
   | 'nv-embed-v1'
+  | 'bge-m3'
+  | 'nv-embedqa-e5-v5'
+  | 'nv-embedqa-mistral-7b-v2'
+  | 'llama-3.2-nv-embedqa-1b-v2'
   | 'nemotron-embed-1b'
-  | 'llama-nemotron-embed-vl-1b'
-  | 'gemini-embedding';
+  | 'arctic-embed-l'
+  | 'gemini-embedding'
+  | 'gemini-001'
+  | 'openrouter-bge-m3'
+  | 'openrouter-bge-large-en'
+  | 'local-deterministic-hash';
 
 export interface EmbeddingResult {
   vector: number[];

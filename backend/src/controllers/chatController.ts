@@ -540,12 +540,12 @@ export async function handleSpeechSTT(req: Request, res: Response): Promise<void
 
 // ── 9. Speech Synthesis (TTS) Gateway (POST /api/ai/speech/tts) ───────────────
 export async function handleSpeechTTS(req: Request, res: Response): Promise<void> {
-  const { text, voice = 'alloy' } = req.body;
+  const { text, voice = 'alloy', language = 'en', speed = 1.0 } = req.body;
   if (!text) {
     res.status(400).json({ error: 'Missing text in request body' });
     return;
   }
-  const result = await synthesizeSpeech(text, voice);
+  const result = await synthesizeSpeech(text, { voice, language, speed });
   res.json(result);
 }
 
@@ -624,3 +624,96 @@ export async function handleGetMetrics(req: Request, res: Response): Promise<voi
 export async function handleGetFullDashboard(_req: Request, res: Response): Promise<void> {
   res.json(getFullTelemetryDashboard());
 }
+
+// ── 14. SDUI Designer (Google Stitch Pipeline) ─────────────────────────────
+import { sduiService } from '../services/sdui/sduiService';
+import { imageService } from '../services/image/imageService';
+import { promptEnhancerService } from '../services/ai/promptEnhancerService';
+import { mainBackendClient } from '../services/integration/mainBackendClient';
+import { knowledgeSyncService } from '../services/ai/knowledgeSyncService';
+
+export async function handleGenerateSDUI(req: Request, res: Response): Promise<void> {
+  const { prompt = 'Featured Woodfired Pizza Menu', targetPage = 'homepage' } = req.body;
+  const sduiPreview = await sduiService.generateSDUIPreview(prompt, targetPage);
+  res.json(sduiPreview);
+}
+
+export async function handlePublishSDUI(req: Request, res: Response): Promise<void> {
+  const { previewId, sduiSchema } = req.body;
+  const userAuthToken = req.headers.authorization || '';
+  if (!previewId || !sduiSchema) {
+    res.status(400).json({ error: 'Missing previewId or sduiSchema' });
+    return;
+  }
+  const result = await sduiService.publishSDUI(userAuthToken, previewId, sduiSchema);
+  res.json(result);
+}
+
+// ── 15. Image Generation Gateway (Preview -> Owner Approval -> Cloudinary) ──
+export async function handleGenerateImage(req: Request, res: Response): Promise<void> {
+  const { prompt = 'Artisan woodfired truffle sourdough pizza', model = 'flux-1-dev' } = req.body;
+  const imagePreview = await imageService.generateImagePreview(prompt, model);
+  res.json(imagePreview);
+}
+
+export async function handleApproveImage(req: Request, res: Response): Promise<void> {
+  const { imageId, previewUrl, bannerMetadata } = req.body;
+  const userAuthToken = req.headers.authorization || '';
+  if (!imageId || !previewUrl) {
+    res.status(400).json({ error: 'Missing imageId or previewUrl' });
+    return;
+  }
+  const result = await imageService.approveAndUploadImage(userAuthToken, imageId, previewUrl, bannerMetadata);
+  res.json(result);
+}
+
+// ── 16. Prompt Enhancer & Image Prompt Enhancer ─────────────────────────────
+export async function handleEnhancePrompt(req: Request, res: Response): Promise<void> {
+  const { prompt, persona = 'customer' } = req.body;
+  if (!prompt) {
+    res.status(400).json({ error: 'Missing prompt' });
+    return;
+  }
+  const result = promptEnhancerService.enhanceTextPrompt(prompt, persona);
+  res.json(result);
+}
+
+export async function handleEnhanceImagePrompt(req: Request, res: Response): Promise<void> {
+  const { prompt } = req.body;
+  if (!prompt) {
+    res.status(400).json({ error: 'Missing prompt' });
+    return;
+  }
+  const result = promptEnhancerService.enhanceImagePrompt(prompt);
+  res.json(result);
+}
+
+// ── 17. Specialized AI Capabilities (Email AI, Analytics Explanation) ───────
+export async function handleGenerateEmail(req: Request, res: Response): Promise<void> {
+  const { campaignTitle = 'Artisan Pizza Festival', targetAudience = 'VIP Customers' } = req.body;
+  const result = promptEnhancerService.generatePromotionalEmail(campaignTitle, targetAudience);
+  res.json(result);
+}
+
+export async function handleExplainAnalytics(req: Request, res: Response): Promise<void> {
+  const { metrics = {} } = req.body;
+  const result = promptEnhancerService.explainAnalytics(metrics);
+  res.json(result);
+}
+
+// ── 18. Dynamic Tool Registry Endpoint ──────────────────────────────────────
+export async function handleGetToolRegistry(_req: Request, res: Response): Promise<void> {
+  const tools = await mainBackendClient.fetchToolRegistry();
+  res.json({ tools, timestamp: new Date().toISOString() });
+}
+
+// ── 19. Cloudflare R2 Knowledge Download Trigger ─────────────────────────────
+export async function handleDownloadR2Knowledge(_req: Request, res: Response): Promise<void> {
+  const result = await knowledgeSyncService.checkAndDownloadR2Knowledge();
+  res.json({
+    success: true,
+    message: 'Checked Cloudflare R2 version.json and synchronized changed JSON files.',
+    ...result,
+  });
+}
+

@@ -265,6 +265,83 @@ async function runVerification() {
     });
   }
 
+  // ── 9. SDUI Designer & Google Stitch Pipeline ──
+  console.log('\n--- 9. SDUI Designer & Google Stitch Pipeline ---');
+  await test('SDUI Generation Preview (/api/ai/sdui/generate)', async () => {
+    const res = await request('POST', '/api/ai/sdui/generate', {
+      prompt: 'Promote Truffle Woodfired Sourdough Pizza Offer Banner',
+      targetPage: 'homepage',
+    });
+    assert(res.status === 200, `Expected 200, got ${res.status}`);
+    assert(res.data.success === true, 'SDUI preview generation failed');
+    assert(res.data.sduiSchema !== undefined, 'Missing SDUI schema');
+    assert(res.data.approvalRequired === true, 'SDUI must require approval before publishing');
+  });
+
+  // ── 10. Image Generation Gateway & Cloudinary Delegation ──
+  console.log('\n--- 10. Image Generation & Cloudinary Upload Delegation ---');
+  await test('Image Generation Preview (/api/ai/image/generate)', async () => {
+    const res = await request('POST', '/api/ai/image/generate', {
+      prompt: 'Artisan woodfired sourdough pizza with fresh basil and garlic oil',
+      model: 'flux-1-dev',
+    });
+    assert(res.status === 200, `Expected 200, got ${res.status}`);
+    assert(res.data.success === true, 'Image preview generation failed');
+    assert(res.data.previewUrl !== undefined, 'Missing image preview URL');
+    assert(res.data.approvalRequired === true, 'Image generation must require owner approval');
+  });
+
+  // ── 11. Prompt Enhancers ──
+  console.log('\n--- 11. Prompt Enhancer & Image Prompt Enhancer ---');
+  await test('Text Prompt Enhancer (/api/ai/prompt/enhance)', async () => {
+    const res = await request('POST', '/api/ai/prompt/enhance', {
+      prompt: 'Recommend me a good vegetarian pizza combo',
+      persona: 'customer',
+    });
+    assert(res.status === 200, `Expected 200, got ${res.status}`);
+    assert(res.data.enhanced.includes('Olive AI'), 'Prompt enhancement missing persona');
+  });
+
+  await test('Image Prompt Enhancer (/api/ai/image-prompt/enhance)', async () => {
+    const res = await request('POST', '/api/ai/image-prompt/enhance', {
+      prompt: 'Spicy Garlic Chicken Pizza',
+    });
+    assert(res.status === 200, `Expected 200, got ${res.status}`);
+    assert(res.data.enhanced.includes('8k resolution'), 'Image prompt enhancer missing details');
+  });
+
+  // ── 12. Specialized AI Capabilities & Dynamic Tool Registry ──
+  console.log('\n--- 12. Specialized AI Capabilities & Tool Registry ---');
+  await test('Promotional Email Generator (/api/ai/email/generate)', async () => {
+    const res = await request('POST', '/api/ai/email/generate', {
+      campaignTitle: 'Monsoon Woodfired Pizza Fest',
+      targetAudience: 'VIP Customers',
+    });
+    assert(res.status === 200, `Expected 200, got ${res.status}`);
+    assert(res.data.subject.includes('VIP'), 'Email AI subject error');
+  });
+
+  await test('Analytics Explanation AI (/api/ai/analytics/explain)', async () => {
+    const res = await request('POST', '/api/ai/analytics/explain', {
+      metrics: { totalOrders: 1500, revenue: 850000, customerRetention: 82.1 },
+    });
+    assert(res.status === 200, `Expected 200, got ${res.status}`);
+    assert(Array.isArray(res.data.insights), 'Analytics AI missing insights');
+  });
+
+  await test('Dynamic Tool Registry (/api/ai/tools/registry)', async () => {
+    const res = await request('GET', '/api/ai/tools/registry');
+    assert(res.status === 200, `Expected 200, got ${res.status}`);
+    assert(Array.isArray(res.data.tools), 'Missing dynamic tool array');
+  });
+
+  await test('Cloudflare R2 Knowledge Download (/api/ai/knowledge/download)', async () => {
+    const res = await request('GET', '/api/ai/knowledge/download');
+    assert(res.status === 200, `Expected 200, got ${res.status}`);
+    assert(res.data.success === true, 'Knowledge download trigger failed');
+  });
+
+
   // ── Summary ──
   console.log('\n================================================================');
   console.log(`🏁 Verification Finished: \x1b[32m${passed} Passed\x1b[0m, \x1b[31m${failed} Failed\x1b[0m`);
@@ -279,3 +356,4 @@ runVerification().catch((e) => {
   console.error('Test Suite Fatal Error:', e);
   process.exit(1);
 });
+

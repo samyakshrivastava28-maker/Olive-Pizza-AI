@@ -115,13 +115,41 @@ export async function transcribeAudio(
   };
 }
 
+import crypto from 'crypto';
+import { cache } from '../../config/cache';
+
 // ─── Text-to-Speech (TTS) Service ─────────────────────────────────────────────
 export async function synthesizeSpeech(
   text: string,
-  voice: string = 'alloy',
+  options: { voice?: string; language?: string; speed?: number } = {},
 ): Promise<SpeechSynthesisResult> {
   const startTime = Date.now();
+  const voice = options.voice || 'alloy';
+  const language = options.language || 'en';
+  const speed = options.speed || 1.0;
 
+  if (!text || text.trim().length === 0) {
+    return {
+      format: 'browser_fallback',
+      provider: 'browser_speech_synthesis',
+      latencyMs: 0,
+    };
+  }
+
+  // Content Hash Audio Cache (Requirement 19)
+  const hashKey = crypto
+    .createHash('md5')
+    .update(`${text}:${voice}:${language}:${speed}`)
+    .digest('hex');
+  const cacheKey = `tts:cache:${hashKey}`;
+
+  const cached = await cache.get<SpeechSynthesisResult>(cacheKey);
+  if (cached) {
+    console.log(`[TTS Cache] Hit for hash: ${hashKey.slice(0, 8)}`);
+    return { ...cached, latencyMs: Date.now() - startTime };
+  }
+
+  // 1. Primary TTS: Chatterbox TTS Multilingual
   if (SPEECH_MODELS.tts.primary.apiKey) {
     try {
       const res = await axios.post(
@@ -130,6 +158,8 @@ export async function synthesizeSpeech(
           model: SPEECH_MODELS.tts.primary.modelName,
           input: text,
           voice,
+          language,
+          speed,
           response_format: 'mp3',
         },
         {
@@ -143,18 +173,60 @@ export async function synthesizeSpeech(
       );
 
       const buffer = Buffer.from(res.data);
-      return {
+      const result: SpeechSynthesisResult = {
         audioBuffer: buffer,
         audioBase64: buffer.toString('base64'),
         format: 'mp3',
-        provider: 'nvidia',
+        provider: 'chatterbox-multilingual',
         latencyMs: Date.now() - startTime,
       };
+
+      // Store audio in cache for 24 hours
+      await cache.set(cacheKey, result, 86400);
+      return result;
     } catch (err) {
-      console.warn('⚠️ NVIDIA TTS failed, instructing client to use browser synthesis:', (err as Error).message);
+      console.warn('⚠️ Primary Chatterbox TTS failed, trying FastPitch fallback:', (err as Error).message);
     }
   }
 
+  // 2. Fallback TTS: FastPitch HiFi-GAN
+  if (SPEECH_MODELS.tts.fallback?.apiKey) {
+    try {
+      const res = await axios.post(
+        SPEECH_MODELS.tts.fallback.endpoint,
+        {
+          model: SPEECH_MODELS.tts.fallback.modelName,
+          input: text,
+          voice,
+          response_format: 'mp3',
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${SPEECH_MODELS.tts.fallback.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          responseType: 'arraybuffer',
+          timeout: 8000,
+        },
+      );
+
+      const buffer = Buffer.from(res.data);
+      const result: SpeechSynthesisResult = {
+        audioBuffer: buffer,
+        audioBase64: buffer.toString('base64'),
+        format: 'mp3',
+        provider: 'fastpitch-hifigan',
+        latencyMs: Date.now() - startTime,
+      };
+
+      await cache.set(cacheKey, result, 86400);
+      return result;
+    } catch (err) {
+      console.warn('⚠️ FastPitch TTS failed, falling back to browser synthesis:', (err as Error).message);
+    }
+  }
+
+  // 3. Fallback: Browser SpeechSynthesis
   return {
     format: 'browser_fallback',
     provider: 'browser_speech_synthesis',

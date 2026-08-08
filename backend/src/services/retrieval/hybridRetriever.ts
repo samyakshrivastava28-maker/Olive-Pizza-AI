@@ -216,18 +216,14 @@ export async function hybridRetrieve(
   query: string,
   embedding?: number[],
 ): Promise<RetrievedContext> {
-  // Phase 5: Local Knowledge Repository takes absolute priority.
+  // Local Knowledge Repository search
   const localResults = localKnowledgeEngine.search(query, MAX_CHUNKS);
-  
-  let pineconeResult: PineconeSearchResult = { results: [], documentIds: [], latencyMs: 0, queried: false };
-  
-  // Only query Pinecone if local JSON failed to find high confidence matches or embedding exists
-  if (localResults.length < 2 && embedding && embedding.length > 0) {
-    pineconeResult = await searchPinecone(embedding);
-  }
 
-  // Still fetch live Firestore facts for active cart/orders context if needed
-  const [firestoreResult, liveMenuText] = await Promise.all([
+  // Run Pinecone vector search (if embedding available) in parallel with Firestore & Live Menu
+  const [pineconeResult, firestoreResult, liveMenuText] = await Promise.all([
+    (embedding && embedding.length > 0)
+      ? searchPinecone(embedding)
+      : Promise.resolve({ results: [], documentIds: [], latencyMs: 0, queried: false }),
     getFirestoreFacts(query),
     formatLiveMenuPrompt(query),
   ]);

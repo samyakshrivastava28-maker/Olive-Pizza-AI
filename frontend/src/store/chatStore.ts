@@ -114,6 +114,11 @@ interface ChatStore {
   // Input
   inputValue: string;
 
+  // Voice & TTS State
+  isAutoVoiceEnabled: boolean;
+  currentlyPlayingAudioId: string | null;
+  voiceOptions: { voice: string; language: string; speed: number };
+
   // Actions
   setInputValue: (val: string) => void;
   sendMessage: (content: string) => void;
@@ -122,6 +127,9 @@ interface ChatStore {
   setThinking: (stage: ThinkingStage, label?: string) => void;
   setTelemetry: (metrics: TelemetryMetrics) => void;
   setVoiceActive: (active: boolean) => void;
+  setAutoVoiceEnabled: (enabled: boolean) => void;
+  setCurrentlyPlayingAudioId: (id: string | null) => void;
+  setVoiceOptions: (opts: Partial<{ voice: string; language: string; speed: number }>) => void;
   toggleTelemetry: () => void;
   toggleSidebar: () => void;
   startNewConversation: () => void;
@@ -143,6 +151,9 @@ export const useChatStore = create<ChatStore>()(
   thinkingStage: null,
   thinkingLabel: '',
   isVoiceActive: false,
+  isAutoVoiceEnabled: typeof window !== 'undefined' ? localStorage.getItem('olive_ai_auto_voice') === 'true' : false,
+  currentlyPlayingAudioId: null,
+  voiceOptions: { voice: 'alloy', language: 'en', speed: 1.0 },
   isTelemetryOpen: false,
   isSidebarOpen: true,
   telemetry: null,
@@ -155,6 +166,15 @@ export const useChatStore = create<ChatStore>()(
   inputValue: '',
 
   setInputValue: (val) => set({ inputValue: val }),
+  setAutoVoiceEnabled: (enabled) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('olive_ai_auto_voice', String(enabled));
+    }
+    set({ isAutoVoiceEnabled: enabled });
+  },
+  setCurrentlyPlayingAudioId: (id) => set({ currentlyPlayingAudioId: id }),
+  setVoiceOptions: (opts) =>
+    set((s) => ({ voiceOptions: { ...s.voiceOptions, ...opts } })),
 
   sendMessage: (content) => {
     const userMessage: ChatMessage = {

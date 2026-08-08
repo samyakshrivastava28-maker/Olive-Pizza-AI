@@ -141,7 +141,34 @@ class MainBackendClient {
       console.warn(`[MainBackendClient] Event ${eventType} failed:`, error.message);
     }
   }
+
+  // ── Dynamic Tool Registry Download ──────────────────────────────────────────
+  public async fetchToolRegistry() {
+    try {
+      const response = await axios.get(
+        `${MAIN_BACKEND_URL}/api/integration/ai/tools/registry`,
+        { headers: this.getAuthHeaders(), timeout: 5000 }
+      );
+      return response.data?.tools || [];
+    } catch (error: any) {
+      console.warn('[MainBackendClient] Dynamic tool registry fetch failed, using cached/fallback tools:', error.message);
+      return [
+        { name: 'ADD_TO_CART', description: 'Add item to user cart', parameters: { productId: 'string', quantity: 'number' } },
+        { name: 'APPLY_COUPON', description: 'Apply discount coupon to order', parameters: { couponCode: 'string' } },
+        { name: 'PLACE_ORDER', description: 'Place checkout order', parameters: { paymentMethod: 'string' } },
+        { name: 'TRACK_ORDER', description: 'Track live order status', parameters: { orderId: 'string' } },
+        { name: 'CANCEL_ORDER', description: 'Cancel active order', parameters: { orderId: 'string', reason: 'string' } },
+        { name: 'PUBLISH_SDUI', description: 'Publish approved SDUI layout schema to main website', parameters: { sduiSchema: 'object' } },
+        { name: 'GENERATE_REPORT', description: 'Generate monthly performance analytics report', parameters: { month: 'string' } },
+        { name: 'CREATE_BANNER', description: 'Create and publish promotional website banner', parameters: { bannerData: 'object' } },
+        { name: 'SEND_NOTIFICATION', description: 'Send customer/owner push notification', parameters: { targetUserId: 'string', message: 'string' } },
+        { name: 'CHANGE_SETTINGS', description: 'Update system or store settings', parameters: { key: 'string', value: 'any' } },
+      ];
+    }
+  }
 }
 
 export const mainBackendClient = new MainBackendClient();
+
+
 

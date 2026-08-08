@@ -10,7 +10,7 @@ let lastHeartbeatTime = Date.now();
 
 export function getHealth(req: Request, res: Response) {
   res.json({
-    status: 'ok',
+    status: 'healthy',
     uptime: process.uptime(),
     memoryUsage: process.memoryUsage(),
     version: '2.0.0',

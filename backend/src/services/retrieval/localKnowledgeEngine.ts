@@ -18,18 +18,42 @@ export class LocalKnowledgeEngine {
     try {
       const jsonPath = path.join(KNOWLEDGE_DIR, `${name}.json`);
       const fileData = await fs.readFile(jsonPath, 'utf-8');
-      const data = JSON.parse(fileData);
-      this.collections.set(name, data);
-      console.log(`[LocalEngine] Loaded ${name}.json (${data.length} items) into memory.`);
+      const parsed = JSON.parse(fileData);
+
+      let items: any[] = [];
+      if (Array.isArray(parsed)) {
+        items = parsed;
+      } else if (Array.isArray(parsed.data)) {
+        items = parsed.data;
+      } else if (Array.isArray(parsed[name])) {
+        items = parsed[name];
+      } else if (parsed && typeof parsed === 'object') {
+        items = [parsed];
+      }
+
+      this.collections.set(name, items);
+      console.log(`[LocalEngine] Loaded ${name}.json (${items.length} items) into memory.`);
     } catch (err: any) {
       console.warn(`[LocalEngine] Could not load ${name}.json:`, err.message);
     }
   }
 
   public async loadAll() {
-    console.log('[LocalEngine] Bootstrapping all JSON knowledge...');
-    const collections = ['products', 'categories', 'offers', 'coupons', 'policies', 'store_info', 'settings', 'faq'];
-    await Promise.all(collections.map(c => this.reloadCollection(c)));
+    console.log('[LocalEngine] Bootstrapping all JSON knowledge into RAM...');
+    const collections = [
+      'products',
+      'combos',
+      'offers',
+      'ads',
+      'restaurant',
+      'categories',
+      'coupons',
+      'policies',
+      'store_info',
+      'settings',
+      'faq',
+    ];
+    await Promise.all(collections.map((c) => this.reloadCollection(c)));
   }
 
   public search(query: string, limit = 5): SearchResult[] {

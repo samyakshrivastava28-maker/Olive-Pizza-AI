@@ -18,6 +18,16 @@ import {
   handleGetFullDashboard,
   handleGetAlerts,
   handleTestAlert,
+  handleGenerateSDUI,
+  handlePublishSDUI,
+  handleGenerateImage,
+  handleApproveImage,
+  handleEnhancePrompt,
+  handleEnhanceImagePrompt,
+  handleGenerateEmail,
+  handleExplainAnalytics,
+  handleGetToolRegistry,
+  handleDownloadR2Knowledge,
 } from '../controllers/chatController';
 import { getHealth, receiveHeartbeat, receiveSelfKeepAlive } from '../controllers/healthController';
 import { promptInjectionGuard } from '../middleware/auth';
@@ -36,7 +46,7 @@ apiRouter.post('/internal/keep-alive', receiveSelfKeepAlive);
 apiRouter.post('/chat', promptInjectionGuard, handleChatStream);
 apiRouter.post('/ai/chat', promptInjectionGuard, handleChatStream);
 
-// 2. Tool Execution Gateway (All 21 Actions)
+// 2. Tool Execution Gateway (All Actions)
 apiRouter.post('/ai/action', handleDirectAction);
 apiRouter.post('/action', handleDirectAction);
 
@@ -73,21 +83,43 @@ apiRouter.post('/speech/stt', handleSpeechSTT);
 apiRouter.post('/ai/speech/tts', handleSpeechTTS);
 apiRouter.post('/speech/tts', handleSpeechTTS);
 
-// 9. Instant Knowledge Ingest & Synchronization
+// 9. Instant Knowledge Ingest & Synchronization (R2 Download + Memory Index)
 apiRouter.post('/ai/knowledge/ingest', handleInstantKnowledgeIngest);
 apiRouter.post('/knowledge/sync', handleKnowledgeSync);
 apiRouter.post('/ai/knowledge/sync', handleKnowledgeSync);
+apiRouter.get('/ai/knowledge/download', handleDownloadR2Knowledge);
+apiRouter.post('/ai/knowledge/download', handleDownloadR2Knowledge);
 
-// 10. Telemetry, Metrics & Developer Dashboard
+// 10. SDUI Designer (Google Stitch Pipeline)
+apiRouter.post('/ai/sdui/generate', handleGenerateSDUI);
+apiRouter.post('/ai/sdui/publish', handlePublishSDUI);
+
+// 11. Image Generation Gateway (Preview -> Owner Approve -> Cloudinary)
+apiRouter.post('/ai/image/generate', handleGenerateImage);
+apiRouter.post('/ai/image/approve', handleApproveImage);
+
+// 12. Prompt Enhancer & Image Prompt Enhancer
+apiRouter.post('/ai/prompt/enhance', handleEnhancePrompt);
+apiRouter.post('/ai/image-prompt/enhance', handleEnhanceImagePrompt);
+
+// 13. Specialized AI Capabilities (Email AI, Analytics Explanation)
+apiRouter.post('/ai/email/generate', handleGenerateEmail);
+apiRouter.post('/ai/analytics/explain', handleExplainAnalytics);
+
+// 14. Dynamic Tool Registry Endpoint
+apiRouter.get('/ai/tools/registry', handleGetToolRegistry);
+
+// 15. Telemetry, Metrics & Developer Dashboard
 apiRouter.get('/ai/telemetry/dashboard', handleGetFullDashboard);
 apiRouter.get('/telemetry/dashboard', handleGetFullDashboard);
 apiRouter.get('/telemetry/:sessionId', handleGetMetrics);
 apiRouter.get('/ai/telemetry/:sessionId', handleGetMetrics);
 
-// 11. Connection Heartbeat & Diagnostics
+// 16. Connection Heartbeat & Diagnostics
 apiRouter.get('/health', handleHealthCheck);
 apiRouter.get('/ai/health', handleHealthCheck);
 
-// 12. Email Alerting & Diagnostics
+// 17. Email Alerting & Diagnostics
 apiRouter.get('/ai/alerts', handleGetAlerts);
 apiRouter.post('/ai/test-alert', handleTestAlert);
+

@@ -142,22 +142,54 @@ export function ChatInput({ suggestions }: ChatInputProps) {
 
       {/* Input bar */}
       <div className="chat-input-bar" style={{ display: 'flex', alignItems: 'flex-end', gap: 4, padding: '6px 8px' }}>
-        {/* Voice button */}
+        {/* Voice STT button (Requirement 9) */}
         <motion.button
           whileTap={{ scale: 0.9 }}
           className={`btn-icon ${isVoiceActive ? 'voice-active' : ''}`}
           onClick={handleVoiceToggle}
-          title={isVoiceActive ? 'Stop listening' : 'Start voice input'}
+          title={isVoiceActive ? 'Stop listening (click to cancel)' : 'Start voice input (speak in Hindi or English)'}
           style={{
             flexShrink: 0,
             fontSize: 18,
             marginBottom: 4,
-            border: '1px solid transparent',
+            border: isVoiceActive ? '1px solid rgba(239, 68, 68, 0.6)' : '1px solid transparent',
+            background: isVoiceActive ? 'rgba(239, 68, 68, 0.2)' : 'transparent',
             borderRadius: 10,
             transition: 'all 0.2s',
           }}
         >
-          🎤
+          {isVoiceActive ? '🔴' : '🎤'}
+        </motion.button>
+
+        {/* Auto Voice Output Toggle Button (Requirement 14) */}
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={() => useChatStore.getState().setAutoVoiceEnabled(!useChatStore.getState().isAutoVoiceEnabled)}
+          title="Toggle Automatic Voice Output for new AI responses"
+          style={{
+            flexShrink: 0,
+            fontSize: 11,
+            fontWeight: 500,
+            fontFamily: 'JetBrains Mono, monospace',
+            marginBottom: 4,
+            padding: '4px 8px',
+            border: useChatStore((s) => s.isAutoVoiceEnabled)
+              ? '1px solid rgba(124, 111, 247, 0.5)'
+              : '1px solid rgba(255, 255, 255, 0.1)',
+            background: useChatStore((s) => s.isAutoVoiceEnabled)
+              ? 'rgba(124, 111, 247, 0.2)'
+              : 'rgba(0, 0, 0, 0.2)',
+            color: useChatStore((s) => s.isAutoVoiceEnabled) ? '#c6c0ff' : 'var(--text-muted)',
+            borderRadius: 8,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            transition: 'all 0.2s',
+          }}
+        >
+          <span>{useChatStore((s) => s.isAutoVoiceEnabled) ? '🔊' : '🔈'}</span>
+          <span>{useChatStore((s) => s.isAutoVoiceEnabled) ? 'Auto Voice: ON' : 'Auto Voice: OFF'}</span>
         </motion.button>
 
         {/* Textarea */}

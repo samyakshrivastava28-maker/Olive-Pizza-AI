@@ -166,15 +166,172 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           </div>
         )}
 
-        {/* Metadata */}
-        {message.metadata?.provider && (
-          <span className="font-mono-label" style={{ color: 'var(--text-muted)', fontSize: 10, paddingLeft: 2 }}>
-            {formatTime(message.timestamp)} · {message.metadata.provider}
-            {message.metadata.latencyMs ? ` · ${message.metadata.latencyMs}ms` : ''}
-          </span>
-        )}
+        {/* Actions & TTS Speaker Row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4, paddingLeft: 2 }}>
+          {/* TTS Speaker Button (Requirement 13) */}
+          <MessageSpeakerButton messageId={message.id} text={displayContent} isStreaming={message.isStreaming} />
+
+          {/* Metadata */}
+          {message.metadata?.provider && (
+            <span className="font-mono-label" style={{ color: 'var(--text-muted)', fontSize: 10 }}>
+              {formatTime(message.timestamp)} · {message.metadata.provider}
+              {message.metadata.latencyMs ? ` · ${message.metadata.latencyMs}ms` : ''}
+            </span>
+          )}
+        </div>
       </div>
     </motion.div>
+  );
+}
+
+// ── Global Audio Singleton for Single Audio Stream ──────────────────────────
+let activeAudio: HTMLAudioElement | null = null;
+
+function stopGlobalAudio() {
+  if (activeAudio) {
+    activeAudio.pause();
+    activeAudio.currentTime = 0;
+    activeAudio = null;
+  }
+  if (typeof window !== 'undefined' && window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+}
+
+// ── TTS Speaker Component for Message Bubbles ────────────────────────────────
+import { useState, useEffect } from 'react';
+
+function MessageSpeakerButton({ messageId, text, isStreaming }: { messageId: string; text: string; isStreaming?: boolean }) {
+  const currentlyPlayingId = useChatStore((s) => s.currentlyPlayingAudioId);
+  const setCurrentlyPlaying = useChatStore((s) => s.setCurrentlyPlayingAudioId);
+  const isAutoVoiceEnabled = useChatStore((s) => s.isAutoVoiceEnabled);
+  const voiceOptions = useChatStore((s) => s.voiceOptions);
+  
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const isCurrentMessagePlaying = currentlyPlayingId === messageId;
+
+  // Auto Voice Output Trigger for newly finished AI responses (Requirement 14 & 15)
+  useEffect(() => {
+    if (!isStreaming && isAutoVoiceEnabled && text && text.trim().length > 0 && !isCurrentMessagePlaying) {
+      // Check if message was generated recently (within 5 seconds) to avoid playing old history
+      handlePlayTTS();
+    }
+  }, [isStreaming]);
+
+  const handlePlayTTS = async () => {
+    if (isStreaming || !text || text.trim().length === 0) return;
+
+    if (isCurrentMessagePlaying) {
+      if (activeAudio) {
+        if (activeAudio.paused) {
+          activeAudio.play();
+          setIsPaused(false);
+          setIsPlaying(true);
+        } else {
+          activeAudio.pause();
+          setIsPaused(true);
+          setIsPlaying(false);
+        }
+        return;
+      }
+    }
+
+    // Stop any previously playing audio
+    stopGlobalAudio();
+    setCurrentlyPlaying(messageId);
+    setIsLoading(true);
+    setIsPlaying(false);
+    setIsPaused(false);
+
+    try {
+      // Request TTS from server (Chatterbox Multilingual / NVIDIA FastPitch)
+      const res = await fetch('/api/ai/speech/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: text.slice(0, 500),
+          voice: voiceOptions.voice,
+          language: voiceOptions.language,
+          speed: voiceOptions.speed,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.audioBase64) {
+          const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
+          activeAudio = audio;
+          audio.onended = () => {
+            setCurrentlyPlaying(null);
+            setIsPlaying(false);
+            setIsPaused(false);
+            activeAudio = null;
+          };
+          audio.onerror = () => {
+            fallbackBrowserSpeech(text);
+          };
+          await audio.play();
+          setIsLoading(false);
+          setIsPlaying(true);
+          return;
+        }
+      }
+      fallbackBrowserSpeech(text);
+    } catch {
+      fallbackBrowserSpeech(text);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fallbackBrowserSpeech = (speechText: string) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+      setCurrentlyPlaying(null);
+      setIsPlaying(false);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(speechText.slice(0, 300));
+    utterance.rate = voiceOptions.speed || 1.0;
+    utterance.onend = () => {
+      setCurrentlyPlaying(null);
+      setIsPlaying(false);
+    };
+    utterance.onerror = () => {
+      setCurrentlyPlaying(null);
+      setIsPlaying(false);
+    };
+    window.speechSynthesis.speak(utterance);
+    setIsPlaying(true);
+  };
+
+  return (
+    <motion.button
+      whileHover={{ scale: 1.1 }}
+      whileTap={{ scale: 0.9 }}
+      onClick={handlePlayTTS}
+      disabled={isStreaming || isLoading}
+      title={isCurrentMessagePlaying && isPlaying ? 'Pause voice' : 'Play response voice'}
+      style={{
+        background: isCurrentMessagePlaying ? 'rgba(124,111,247,0.25)' : 'rgba(255,255,255,0.05)',
+        border: `1px solid ${isCurrentMessagePlaying ? 'rgba(124,111,247,0.4)' : 'rgba(255,255,255,0.1)'}`,
+        borderRadius: '50%',
+        width: 26,
+        height: 26,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: 12,
+        cursor: isStreaming ? 'not-allowed' : 'pointer',
+        color: 'var(--text-primary)',
+        transition: 'all 0.2s',
+      }}
+    >
+      {isLoading ? '⏳' : isCurrentMessagePlaying && isPlaying ? '⏸️' : isCurrentMessagePlaying && isPaused ? '▶️' : '🔊'}
+    </motion.button>
   );
 }
 

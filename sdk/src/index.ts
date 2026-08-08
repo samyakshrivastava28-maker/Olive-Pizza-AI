@@ -421,6 +421,97 @@ export class OliveAISDK {
     listeners.forEach((fn) => fn(data));
   }
 
+  // ── SDUI Designer (Google Stitch Pipeline) ──────────────────────────────
+  public async generateSDUI(prompt: string, targetPage = 'homepage'): Promise<any> {
+    const res = await fetch(`${this.gatewayUrl}/api/ai/sdui/generate`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ prompt, targetPage }),
+    });
+    return res.json();
+  }
+
+  public async publishSDUI(previewId: string, sduiSchema: Record<string, unknown>): Promise<any> {
+    const res = await fetch(`${this.gatewayUrl}/api/ai/sdui/publish`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ previewId, sduiSchema }),
+    });
+    return res.json();
+  }
+
+  // ── Image Generation (Preview -> Owner Approval -> Cloudinary Upload) ──
+  public async generateImage(prompt: string, model = 'flux-1-dev'): Promise<any> {
+    const res = await fetch(`${this.gatewayUrl}/api/ai/image/generate`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ prompt, model }),
+    });
+    return res.json();
+  }
+
+  public async approveImage(imageId: string, previewUrl: string, bannerMetadata?: Record<string, unknown>): Promise<any> {
+    const res = await fetch(`${this.gatewayUrl}/api/ai/image/approve`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ imageId, previewUrl, bannerMetadata }),
+    });
+    return res.json();
+  }
+
+  // ── Prompt Enhancers ────────────────────────────────────────────────────────
+  public async enhancePrompt(prompt: string, persona = 'customer'): Promise<any> {
+    const res = await fetch(`${this.gatewayUrl}/api/ai/prompt/enhance`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ prompt, persona }),
+    });
+    return res.json();
+  }
+
+  public async enhanceImagePrompt(prompt: string): Promise<any> {
+    const res = await fetch(`${this.gatewayUrl}/api/ai/image-prompt/enhance`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ prompt }),
+    });
+    return res.json();
+  }
+
+  // ── Specialized AI (Email AI & Analytics Explanation) ───────────────────────
+  public async generateEmail(campaignTitle: string, targetAudience = 'VIP Customers'): Promise<any> {
+    const res = await fetch(`${this.gatewayUrl}/api/ai/email/generate`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ campaignTitle, targetAudience }),
+    });
+    return res.json();
+  }
+
+  public async explainAnalytics(metrics: Record<string, unknown> = {}): Promise<any> {
+    const res = await fetch(`${this.gatewayUrl}/api/ai/analytics/explain`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ metrics }),
+    });
+    return res.json();
+  }
+
+  // ── Dynamic Tool Registry & R2 Knowledge Sync ──────────────────────────────
+  public async fetchToolRegistry(): Promise<any> {
+    const res = await fetch(`${this.gatewayUrl}/api/ai/tools/registry`, {
+      headers: this.getHeaders(),
+    });
+    return res.json();
+  }
+
+  public async downloadR2Knowledge(): Promise<any> {
+    const res = await fetch(`${this.gatewayUrl}/api/ai/knowledge/download`, {
+      headers: this.getHeaders(),
+    });
+    return res.json();
+  }
+
   private getHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
