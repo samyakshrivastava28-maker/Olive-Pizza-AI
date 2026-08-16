@@ -1,8 +1,9 @@
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { OvenLoader } from '../oven/OvenLoader';
 import type { ChatMessage as ChatMessageType } from '../../store/chatStore';
 import { useChatStore } from '../../store/chatStore';
-import { ProductCardItem } from './ProductCardItem';
+import { ProductCardItem, ProductItemData } from './ProductCardItem';
 
 interface MessageBubbleProps {
   message: ChatMessageType;
@@ -54,7 +55,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       initial={{ opacity: 0, y: 8, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-      style={{ display: 'flex', gap: 10, marginBottom: 4, maxWidth: '82%' }}
+      style={{ display: 'flex', gap: 10, marginBottom: 4, maxWidth: '85%' }}
     >
       {/* Avatar */}
       <div
@@ -62,8 +63,8 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           width: 32,
           height: 32,
           borderRadius: '50%',
-          background: 'rgba(124,111,247,0.15)',
-          border: '1px solid rgba(124,111,247,0.25)',
+          background: 'rgba(16, 185, 129, 0.15)',
+          border: '1px solid rgba(16, 185, 129, 0.35)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -100,7 +101,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                     display: 'inline-block',
                     width: 2,
                     height: 14,
-                    background: 'var(--accent-purple)',
+                    background: '#10B981',
                     borderRadius: 1,
                     marginLeft: 2,
                     verticalAlign: 'middle',
@@ -113,24 +114,28 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
         {/* Product Cards (if any) */}
         {message.productCards && message.productCards.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-            {message.productCards.map((card, i) => (
-              <ProductCardItem
-                key={i}
-                product={{
-                  id: card.productId,
-                  name: 'Truffle Mushroom Artisan Pizza',
-                  description: 'Wild forest mushrooms, black truffle oil, fresh fior di latte mozzarella on 48h sourdough.',
-                  price: 499,
-                  originalPrice: 599,
-                  isVeg: true,
-                  rating: 4.9,
-                  reviewsCount: 128,
-                  prepTime: '15-20 min',
-                  spicyLevel: 1,
-                }}
-              />
-            ))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
+            {message.productCards.map((card: any, i: number) => {
+              const p = card.product || card;
+              const productData: ProductItemData = {
+                id: p.id || card.productId || ('item_' + i),
+                name: p.name || 'Handcrafted Artisan Pizza',
+                category: p.category || 'Pizzas',
+                price: Number(p.basePrice || p.price || 349),
+                originalPrice: p.originalPrice ? Number(p.originalPrice) : undefined,
+                description: p.description || 'Crafted with 48-hour slow fermented dough, San Marzano sauce, and rich whole-milk mozzarella.',
+                isVeg: p.isVegetarian ?? p.isVeg ?? true,
+                image: p.image || 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?w=500',
+                rating: p.rating ? Number(p.rating) : 4.8,
+                reviewsCount: p.reviewsCount || 150,
+                prepTime: p.prepTime || '15-20 min',
+                spicyLevel: p.spicyLevel ?? (p.isSpicy ? 2 : 0),
+                variants: p.variants,
+                crusts: p.crusts,
+                addons: p.addons,
+              };
+              return <ProductCardItem key={productData.id || i} product={productData} />;
+            })}
           </div>
         )}
 
@@ -145,22 +150,22 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                 transition={{ delay: i * 0.1 }}
                 onClick={() => executeAction(action)}
                 style={{
-                  padding: '5px 12px',
+                  padding: '6px 12px',
                   borderRadius: 8,
-                  background: 'rgba(124,111,247,0.12)',
-                  border: '1px solid rgba(124,111,247,0.25)',
-                  color: '#c6c0ff',
+                  background: 'rgba(16, 185, 129, 0.12)',
+                  border: '1px solid rgba(16, 185, 129, 0.28)',
+                  color: '#34D399',
                   fontSize: 12,
                   cursor: 'pointer',
-                  fontFamily: 'JetBrains Mono, monospace',
-                  fontWeight: 500,
+                  fontFamily: 'Inter, sans-serif',
+                  fontWeight: 600,
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
                 }}
               >
                 <span>⚡</span>
-                <span>{action.description || action.type?.replace(/_/g, ' ') || 'Action'}</span>
+                <span>{action.description || action.type}</span>
               </motion.button>
             ))}
           </div>
@@ -168,14 +173,14 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
         {/* Actions & TTS Speaker Row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4, paddingLeft: 2 }}>
-          {/* TTS Speaker Button (Requirement 13) */}
+          {/* TTS Speaker Button */}
           <MessageSpeakerButton messageId={message.id} text={displayContent} isStreaming={message.isStreaming} />
 
           {/* Metadata */}
           {message.metadata?.provider && (
             <span className="font-mono-label" style={{ color: 'var(--text-muted)', fontSize: 10 }}>
               {formatTime(message.timestamp)} · {message.metadata.provider}
-              {message.metadata.latencyMs ? ` · ${message.metadata.latencyMs}ms` : ''}
+              {message.metadata.latencyMs ? ' · ' + message.metadata.latencyMs + 'ms' : ''}
             </span>
           )}
         </div>
@@ -199,8 +204,6 @@ function stopGlobalAudio() {
 }
 
 // ── TTS Speaker Component for Message Bubbles ────────────────────────────────
-import { useState, useEffect } from 'react';
-
 function MessageSpeakerButton({ messageId, text, isStreaming }: { messageId: string; text: string; isStreaming?: boolean }) {
   const currentlyPlayingId = useChatStore((s) => s.currentlyPlayingAudioId);
   const setCurrentlyPlaying = useChatStore((s) => s.setCurrentlyPlayingAudioId);
@@ -213,10 +216,8 @@ function MessageSpeakerButton({ messageId, text, isStreaming }: { messageId: str
 
   const isCurrentMessagePlaying = currentlyPlayingId === messageId;
 
-  // Auto Voice Output Trigger for newly finished AI responses (Requirement 14 & 15)
   useEffect(() => {
     if (!isStreaming && isAutoVoiceEnabled && text && text.trim().length > 0 && !isCurrentMessagePlaying) {
-      // Check if message was generated recently (within 5 seconds) to avoid playing old history
       handlePlayTTS();
     }
   }, [isStreaming]);
@@ -239,7 +240,6 @@ function MessageSpeakerButton({ messageId, text, isStreaming }: { messageId: str
       }
     }
 
-    // Stop any previously playing audio
     stopGlobalAudio();
     setCurrentlyPlaying(messageId);
     setIsLoading(true);
@@ -247,7 +247,6 @@ function MessageSpeakerButton({ messageId, text, isStreaming }: { messageId: str
     setIsPaused(false);
 
     try {
-      // Request TTS from server (Chatterbox Multilingual / NVIDIA FastPitch)
       const res = await fetch('/api/ai/speech/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -262,7 +261,7 @@ function MessageSpeakerButton({ messageId, text, isStreaming }: { messageId: str
       if (res.ok) {
         const data = await res.json();
         if (data.audioBase64) {
-          const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
+          const audio = new Audio('data:audio/mp3;base64,' + data.audioBase64);
           activeAudio = audio;
           audio.onended = () => {
             setCurrentlyPlaying(null);
@@ -316,8 +315,8 @@ function MessageSpeakerButton({ messageId, text, isStreaming }: { messageId: str
       disabled={isStreaming || isLoading}
       title={isCurrentMessagePlaying && isPlaying ? 'Pause voice' : 'Play response voice'}
       style={{
-        background: isCurrentMessagePlaying ? 'rgba(124,111,247,0.25)' : 'rgba(255,255,255,0.05)',
-        border: `1px solid ${isCurrentMessagePlaying ? 'rgba(124,111,247,0.4)' : 'rgba(255,255,255,0.1)'}`,
+        background: isCurrentMessagePlaying ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255,255,255,0.05)',
+        border: '1px solid ' + (isCurrentMessagePlaying ? 'rgba(16, 185, 129, 0.4)' : 'rgba(255,255,255,0.1)'),
         borderRadius: '50%',
         width: 26,
         height: 26,
@@ -350,8 +349,8 @@ export function ThinkingBubble({ stage, label }: { stage: string; label: string 
           width: 32,
           height: 32,
           borderRadius: '50%',
-          background: 'rgba(124,111,247,0.15)',
-          border: '1px solid rgba(124,111,247,0.25)',
+          background: 'rgba(16, 185, 129, 0.15)',
+          border: '1px solid rgba(16, 185, 129, 0.25)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -384,12 +383,12 @@ function SimpleMarkdown({ text }: { text: string }) {
             <code
               key={i}
               style={{
-                background: 'rgba(124,111,247,0.12)',
+                background: 'rgba(16, 185, 129, 0.12)',
                 padding: '1px 5px',
                 borderRadius: 4,
                 fontFamily: 'JetBrains Mono, monospace',
                 fontSize: 12,
-                color: '#c6c0ff',
+                color: '#34D399',
               }}
             >
               {part.slice(1, -1)}
