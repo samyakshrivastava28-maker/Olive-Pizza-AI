@@ -8,6 +8,7 @@ export interface ToolExecutionResult {
   resultData?: Record<string, unknown>;
   message: string;
   timestamp: number;
+  code?: string;
 }
 
 const UI_ONLY_ACTIONS = [
@@ -17,15 +18,20 @@ const UI_ONLY_ACTIONS = [
   'CONTACT_SUPPORT'
 ];
 
+/**
+ * Business actions are executed ONLY by the Main Backend, under the caller's verified Firebase identity.
+ * The AI layer never authorizes an action because the prompt asked for it, and never substitutes a
+ * placeholder identity: no verified token => the business action is refused.
+ */
 export async function executeToolAction(
   action: WebsiteAction,
-  userAuthToken?: string,
+  verifiedIdToken?: string,
 ): Promise<ToolExecutionResult> {
   const normType = action.type.toUpperCase();
   const timestamp = Date.now();
 
   try {
-    // 1. Check if this is a purely frontend UI action
+    // 1. Purely frontend UI action — no business effect
     if (UI_ONLY_ACTIONS.includes(normType)) {
       return {
         success: true,
@@ -36,31 +42,40 @@ export async function executeToolAction(
       };
     }
 
-    // 2. Business action (ADD_TO_CART, CHECKOUT, APPLY_COUPON, TRACK_ORDER, PUBLISH_SDUI, CREATE_BANNER, etc.)
-    const activeToken = userAuthToken || 'Bearer mock_verification_token';
+    // 2. Business action — requires a verified end-user identity
+    if (!verifiedIdToken) {
+      return {
+        success: false,
+        actionType: normType,
+        payload: action.payload as any,
+        message: 'Please sign in to perform this action.',
+        code: 'AUTH_REQUIRED',
+        timestamp,
+      };
+    }
 
-    // Forward the action to the Main Project Backend
-    const response = await mainBackendClient.executeAction(activeToken, normType, action.payload);
+    const response = await mainBackendClient.executeAction(verifiedIdToken, normType, action.payload);
 
     if (response && response.success !== false) {
       return {
         success: true,
         actionType: normType,
         payload: action.payload as any,
-        resultData: response.data || { delegated: true, target: 'Olive Pizza Main Backend' },
-        message: response.message || `Action ${normType} delegated successfully to Main Backend.`,
-        timestamp,
-      };
-    } else {
-      return {
-        success: true,
-        actionType: normType,
-        payload: action.payload as any,
-        resultData: { delegated: true, status: 'acknowledged' },
-        message: `Action ${normType} delegated to Main Backend.`,
+        resultData: response.data,
+        message: response.message || `Action ${normType} completed by the Main Backend.`,
         timestamp,
       };
     }
+
+    // Real failure from the Main Backend — surface it, never pretend it was acknowledged.
+    return {
+      success: false,
+      actionType: normType,
+      payload: action.payload as any,
+      message: response?.error || `Main Backend rejected ${normType}.`,
+      code: response?.code ? String(response.code) : 'MAIN_BACKEND_REJECTED',
+      timestamp,
+    };
   } catch (error: any) {
     console.error(`[ToolExecutor] Error executing ${normType}:`, error);
     return {

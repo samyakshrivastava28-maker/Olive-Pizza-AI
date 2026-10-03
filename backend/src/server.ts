@@ -12,30 +12,35 @@ const app = express();
 app.use(helmet({ crossOriginEmbedderPolicy: false }));
 
 // ── CORS ───────────────────────────────────────────────────────────────────────
+// Exact-match allowlist only. Anyone can deploy "attacker.vercel.app", so suffix/wildcard matching is forbidden.
+const allowedOrigins = new Set<string>(
+  [
+    ...env.CORS_ORIGIN.split(','),
+    ...env.ALLOWED_ORIGINS.split(','),
+    ...(env.NODE_ENV === 'production'
+      ? []
+      : [
+          'http://localhost:5173',
+          'http://localhost:5174',
+          'http://localhost:5175',
+          'http://localhost:3050',
+          'http://localhost:3000',
+        ]),
+  ]
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean),
+);
+
 app.use(
   cors({
     origin: (origin, callback) => {
+      // Non-browser callers (server-to-server, mobile native) send no Origin; they are authenticated by token/HMAC, not CORS.
       if (!origin) return callback(null, true);
-      
-      const allowedOrigins = [
-        env.CORS_ORIGIN,
-        'http://localhost:5173',
-        'http://localhost:5174',
-        'http://localhost:5175',
-        'http://localhost:3050',
-        'http://localhost:3000',
-        'https://olive-pizza.vercel.app',
-      ];
-      
-      // Allow any Vercel deployment dynamically
-      if (origin.endsWith('.vercel.app') || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
+      if (allowedOrigins.has(origin)) return callback(null, true);
+      callback(new Error('Not allowed by CORS'));
     },
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Olive-SDK-Version', 'X-Request-ID', 'X-API-Key'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Olive-SDK-Version', 'X-Request-ID', 'X-AI-Signature', 'X-AI-Timestamp'],
     credentials: true,
   }),
 );
@@ -102,7 +107,7 @@ const server = app.listen(env.PORT, async () => {
 ──────────────────────────────────────────
   Port         : ${env.PORT}
   Env          : ${env.NODE_ENV}
-  CORS Allowed : ${env.CORS_ORIGIN}, https://olive-pizza.vercel.app
+  CORS Allowed : ${[...allowedOrigins].join(', ')}
   SDK Version  : @olive-ai/sdk v2.0.0
 ──────────────────────────────────────────
   `);

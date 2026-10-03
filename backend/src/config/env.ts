@@ -43,8 +43,13 @@ const envSchema = z.object({
   DATABASE_URL: z.string().optional(),
   REDIS_URL: z.string().optional(),
 
-  // JWT & Auth
-  JWT_SECRET: z.string().default('olive-ai-jwt-secret-dev-change-in-prod'),
+  // Service-to-service trust (NO defaults — missing secret = HMAC auth fails closed)
+  AI_GATEWAY_SECRET: z.string().optional(),
+  TRACKING_TOKEN_SECRET: z.string().optional(),
+  INTERNAL_SECRET: z.string().optional(),
+
+  // Explicit browser-origin allowlist (comma separated). Wildcard hosts are never accepted.
+  ALLOWED_ORIGINS: z.string().default(''),
 
   // Rate limiting
   RATE_LIMIT_WINDOW_MS: z.string().default('60000'),
@@ -68,6 +73,32 @@ if (!parsed.success) {
   console.error('❌ Invalid environment variables:');
   console.error(parsed.error.flatten().fieldErrors);
   process.exit(1);
+}
+
+// Production must never boot with missing / placeholder trust secrets.
+if (parsed.data.NODE_ENV === 'production') {
+  const KNOWN_PLACEHOLDERS = [
+    'olive-ai-gateway-secret-change-in-prod',
+    'fallback-secret-do-not-use-in-prod',
+    'olive-tracking-secret-change-me',
+    'olive-ai-jwt-secret-dev-change-in-prod',
+  ];
+  const requiredProd: Array<[string, string | undefined]> = [
+    ['AI_GATEWAY_SECRET', parsed.data.AI_GATEWAY_SECRET],
+    ['TRACKING_TOKEN_SECRET', parsed.data.TRACKING_TOKEN_SECRET],
+    ['FIREBASE_SERVICE_ACCOUNT_BASE64', parsed.data.FIREBASE_SERVICE_ACCOUNT_BASE64],
+  ];
+  const problems = requiredProd
+    .filter(([, v]) => !v || KNOWN_PLACEHOLDERS.includes(v.trim()) || (v.length < 16))
+    .map(([k]) => k);
+  if (problems.length > 0) {
+    console.error(`❌ CRITICAL PRODUCTION SECURITY ERROR: missing/placeholder/too-short secrets: ${problems.join(', ')}`);
+    process.exit(1);
+  }
+  if (!parsed.data.ALLOWED_ORIGINS.trim() && !parsed.data.CORS_ORIGIN.trim()) {
+    console.error('❌ CRITICAL PRODUCTION SECURITY ERROR: ALLOWED_ORIGINS (explicit CORS allowlist) is required.');
+    process.exit(1);
+  }
 }
 
 export const env = {

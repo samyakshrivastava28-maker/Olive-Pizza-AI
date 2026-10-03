@@ -10,17 +10,21 @@ import axios from 'axios';
 import crypto from 'crypto';
 import { env } from '../../config/env';
 
-const MAIN_BACKEND_URL = env.OLIVE_PIZZA_BACKEND_URL || 'https://olive-pizza-backend.onrender.com';
-const AI_GATEWAY_SECRET = process.env.AI_GATEWAY_SECRET || 'olive-ai-gateway-secret-change-in-prod';
+const MAIN_BACKEND_URL = env.OLIVE_PIZZA_BACKEND_URL;
 
 class MainBackendClient {
 
   // ── HMAC Signature Generation ──────────────────────────────────────────────
   private buildSignedHeaders(body: any): Record<string, string> {
+    const secret = env.AI_GATEWAY_SECRET;
+    if (!secret) {
+      // Never sign with a known/default secret. The Main Backend would reject an unsigned call anyway.
+      throw new Error('AI_GATEWAY_SECRET is not configured; cannot sign requests to the Main Backend.');
+    }
     const timestamp = Date.now().toString();
     const payload = `${timestamp}:${JSON.stringify(body)}`;
     const signature = crypto
-      .createHmac('sha256', AI_GATEWAY_SECRET)
+      .createHmac('sha256', secret)
       .update(payload)
       .digest('hex');
     return { 'X-AI-Signature': signature, 'X-AI-Timestamp': timestamp };
@@ -31,7 +35,7 @@ class MainBackendClient {
       'Content-Type': 'application/json',
       ...this.buildSignedHeaders(body),
     };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
     return headers;
   }
 
@@ -151,19 +155,9 @@ class MainBackendClient {
       );
       return response.data?.tools || [];
     } catch (error: any) {
-      console.warn('[MainBackendClient] Dynamic tool registry fetch failed, using cached/fallback tools:', error.message);
-      return [
-        { name: 'ADD_TO_CART', description: 'Add item to user cart', parameters: { productId: 'string', quantity: 'number' } },
-        { name: 'APPLY_COUPON', description: 'Apply discount coupon to order', parameters: { couponCode: 'string' } },
-        { name: 'PLACE_ORDER', description: 'Place checkout order', parameters: { paymentMethod: 'string' } },
-        { name: 'TRACK_ORDER', description: 'Track live order status', parameters: { orderId: 'string' } },
-        { name: 'CANCEL_ORDER', description: 'Cancel active order', parameters: { orderId: 'string', reason: 'string' } },
-        { name: 'PUBLISH_SDUI', description: 'Publish approved SDUI layout schema to main website', parameters: { sduiSchema: 'object' } },
-        { name: 'GENERATE_REPORT', description: 'Generate monthly performance analytics report', parameters: { month: 'string' } },
-        { name: 'CREATE_BANNER', description: 'Create and publish promotional website banner', parameters: { bannerData: 'object' } },
-        { name: 'SEND_NOTIFICATION', description: 'Send customer/owner push notification', parameters: { targetUserId: 'string', message: 'string' } },
-        { name: 'CHANGE_SETTINGS', description: 'Update system or store settings', parameters: { key: 'string', value: 'any' } },
-      ];
+      // No fabricated registry: the Main Backend is the only authority on which tools exist.
+      console.error('[MainBackendClient] Tool registry fetch failed:', error.response?.data || error.message);
+      return [];
     }
   }
 }

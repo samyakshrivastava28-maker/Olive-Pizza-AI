@@ -45,7 +45,8 @@ export async function handleChatStream(req: Request, res: Response): Promise<voi
   }
   const { messages, sessionId, websiteContext = {} } = parsed.data;
   const requestId = `req_${Math.random().toString(36).substring(2, 9)}`;
-  const userAuthToken = req.headers.authorization;
+  // Only a token that optionalAuth/requireAuth actually VERIFIED is ever forwarded.
+  const userAuthToken = req.principal?.idToken;
 
   // Set up SSE
   res.setHeader('Content-Type', 'text/event-stream');
@@ -458,7 +459,7 @@ export async function handleGetMenu(req: Request, res: Response): Promise<void> 
 // ── 4. Tool Execution Direct Gateway (POST /api/ai/action) ────────────────────
 export async function handleDirectAction(req: Request, res: Response): Promise<void> {
   const { action } = req.body;
-  const userAuthToken = req.headers.authorization;
+  const userAuthToken = req.principal?.idToken;
   if (!action || !action.type) {
     res.status(400).json({ error: 'Missing action object or action.type' });
     return;
@@ -482,13 +483,16 @@ export async function handleGetRecommendations(req: Request, res: Response): Pro
 }
 
 export async function handleHomepageRecommendations(req: Request, res: Response): Promise<void> {
-  const { weather, timeOfDay, isVeg, userId } = req.body;
+  const { weather, timeOfDay, isVeg } = req.body ?? {};
+  const userId = req.principal?.kind === 'user' ? req.principal.uid : undefined; // never trust body.userId
   const result = await generateHomepageRecommendations({ weather, timeOfDay, isVeg, userId });
   res.json(result);
 }
 
 export async function handleDashboardRecommendations(req: Request, res: Response): Promise<void> {
-  const { userId, userRole, isVeg } = req.body;
+  const { isVeg } = req.body ?? {};
+  const userId = req.principal?.uid;          // identity + role come from the verified token only
+  const userRole = req.principal?.role;
   const result = await generateDashboardRecommendations({ userId, userRole, isVeg });
   res.json(result);
 }
@@ -590,10 +594,12 @@ export async function handleKnowledgeSync(req: Request, res: Response): Promise<
 
 // ── 12. Connection Health & Heartbeat ─────────────────────────────────────────
 export async function handleHealthCheck(_req: Request, res: Response): Promise<void> {
+  // Public liveness only. Provider/model/infrastructure detail is behind /ai/telemetry/dashboard (DIAGNOSTICS role).
   const health = await checkSystemHealth(true);
   res.json({
     status: health.overallStatus || 'healthy',
-    ...health,
+    version: '2.0.0',
+    timestamp: new Date().toISOString(),
   });
 }
 
@@ -640,7 +646,7 @@ export async function handleGenerateSDUI(req: Request, res: Response): Promise<v
 
 export async function handlePublishSDUI(req: Request, res: Response): Promise<void> {
   const { previewId, sduiSchema } = req.body;
-  const userAuthToken = req.headers.authorization || '';
+  const userAuthToken = req.principal?.idToken || '';
   if (!previewId || !sduiSchema) {
     res.status(400).json({ error: 'Missing previewId or sduiSchema' });
     return;
@@ -658,7 +664,7 @@ export async function handleGenerateImage(req: Request, res: Response): Promise<
 
 export async function handleApproveImage(req: Request, res: Response): Promise<void> {
   const { imageId, previewUrl, bannerMetadata } = req.body;
-  const userAuthToken = req.headers.authorization || '';
+  const userAuthToken = req.principal?.idToken || '';
   if (!imageId || !previewUrl) {
     res.status(400).json({ error: 'Missing imageId or previewUrl' });
     return;

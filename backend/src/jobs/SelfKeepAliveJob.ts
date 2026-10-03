@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { env } from '../config/env';
+import { getInternalSecret } from '../config/secrets';
 import { mainBackendClient } from '../services/integration/mainBackendClient';
 
 const AI_VERSION = '2.0.0'; // Keep in sync with root package.json
@@ -24,8 +25,11 @@ export class SelfKeepAliveJob {
     const nonce = uuidv4();
     const payload = `${timestamp}:${nonce}`;
     
-    // Use TRACKING_TOKEN_SECRET or a fallback internal secret
-    const secret = process.env.INTERNAL_SECRET || process.env.TRACKING_TOKEN_SECRET || 'fallback-secret-do-not-use-in-prod';
+    const secret = getInternalSecret();
+    if (!secret) {
+      console.warn('[SelfKeepAlive] INTERNAL_SECRET/TRACKING_TOKEN_SECRET not configured — keep-alive disabled (no default secret is used).');
+      return;
+    }
     
     const signature = crypto
       .createHmac('sha256', secret)

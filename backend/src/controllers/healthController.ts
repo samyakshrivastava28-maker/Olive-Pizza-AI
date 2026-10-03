@@ -1,111 +1,80 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
-import { env } from '../config/env';
+import { getHeartbeatSecret, getInternalSecret } from '../config/secrets';
 
 // Track heartbeat statistics
 let lastHeartbeat: string | null = null;
 let totalHeartbeatsToday = 0;
-let missedHeartbeats = 0;
 let lastHeartbeatTime = Date.now();
 
-export function getHealth(req: Request, res: Response) {
+/** Public liveness probe: deliberately exposes no memory, uptime or heartbeat internals. */
+export function getHealth(_req: Request, res: Response) {
   res.json({
     status: 'healthy',
-    uptime: process.uptime(),
-    memoryUsage: process.memoryUsage(),
     version: '2.0.0',
     timestamp: new Date().toISOString(),
-    aiStatus: 'online',
-    heartbeatStats: {
-      lastHeartbeat,
-      totalHeartbeatsToday,
-      missedHeartbeats,
-      timeSinceLastHeartbeatMs: Date.now() - lastHeartbeatTime
-    }
   });
 }
 
-export function receiveHeartbeat(req: Request, res: Response) {
-  const { timestamp, nonce, signature } = req.body;
+function signedPingValid(
+  req: Request,
+  res: Response,
+  secret: string | undefined,
+  maxAgeMs: number,
+  label: string,
+): boolean {
+  const { timestamp, nonce, signature } = req.body ?? {};
 
+  if (!secret) {
+    console.error(`[${label}] No signing secret configured — rejecting (fail closed).`);
+    res.status(503).json({ error: 'Heartbeat verification not configured' });
+    return false;
+  }
   if (!timestamp || !nonce || !signature) {
-    res.status(400).json({ error: 'Missing heartbeat parameters' });
-    return;
+    res.status(400).json({ error: 'Missing parameters' });
+    return false;
   }
 
-  // 1. Prevent Replay Attacks (Timestamp > 5 mins old)
-  const timeDiff = Date.now() - parseInt(timestamp, 10);
-  if (timeDiff > 5 * 60 * 1000 || timeDiff < -60000) {
-    console.warn(`⚠️ [Heartbeat] Stale or invalid timestamp received from client.`);
-    res.status(401).json({ error: 'Stale heartbeat timestamp' });
-    return;
+  const timeDiff = Date.now() - parseInt(String(timestamp), 10);
+  if (!Number.isFinite(timeDiff) || timeDiff > maxAgeMs || timeDiff < -60000) {
+    res.status(401).json({ error: 'Stale timestamp' });
+    return false;
   }
 
-  // 2. Validate HMAC Signature
-  const payload = `${timestamp}:${nonce}`;
-  const secret = process.env.TRACKING_TOKEN_SECRET || 'fallback-secret-do-not-use-in-prod';
-  
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(payload)
-    .digest('hex');
-
-  if (signature !== expectedSignature) {
-    console.warn(`🚨 [Heartbeat] SECURITY ALERT: Invalid HMAC signature.`);
+  const expected = crypto.createHmac('sha256', secret).update(`${timestamp}:${nonce}`).digest('hex');
+  let ok = false;
+  try {
+    const a = Buffer.from(String(signature), 'hex');
+    const b = Buffer.from(expected, 'hex');
+    ok = a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch {
+    ok = false;
+  }
+  if (!ok) {
+    console.warn(`🚨 [${label}] Invalid HMAC signature.`);
     res.status(403).json({ error: 'Invalid HMAC signature' });
-    return;
+    return false;
   }
+  return true;
+}
 
-  // 3. Heartbeat Accepted
+export function receiveHeartbeat(req: Request, res: Response) {
+  if (!signedPingValid(req, res, getHeartbeatSecret(), 5 * 60 * 1000, 'Heartbeat')) return;
+
   lastHeartbeat = new Date().toISOString();
   lastHeartbeatTime = Date.now();
   totalHeartbeatsToday++;
 
-  console.log(`💓 [Heartbeat] Received valid keep-alive ping. Total today: ${totalHeartbeatsToday}`);
-
-  res.json({
-    status: 'alive',
-    timestamp: new Date().toISOString(),
-    message: 'Heartbeat acknowledged'
-  });
+  res.json({ status: 'alive', timestamp: new Date().toISOString(), message: 'Heartbeat acknowledged' });
 }
 
 export function receiveSelfKeepAlive(req: Request, res: Response) {
-  const { timestamp, nonce, signature } = req.body;
+  if (!signedPingValid(req, res, getInternalSecret(), 2 * 60 * 1000, 'Self-Ping')) return;
 
-  if (!timestamp || !nonce || !signature) {
-    res.status(400).json({ error: 'Missing keep-alive parameters' });
-    return;
-  }
+  res.status(200).json({ status: 'alive', timestamp: new Date().toISOString(), message: 'Self Keep-alive acknowledged' });
+}
 
-  // 1. Prevent Replay Attacks (Timestamp > 2 mins old)
-  const timeDiff = Date.now() - parseInt(timestamp, 10);
-  if (timeDiff > 2 * 60 * 1000 || timeDiff < -60000) {
-    console.warn(`⚠️ [Self-Ping] Stale or invalid timestamp received.`);
-    res.status(401).json({ error: 'Stale keep-alive timestamp' });
-    return;
-  }
-
-  // 2. Validate HMAC Signature
-  const payload = `${timestamp}:${nonce}`;
-  const secret = process.env.INTERNAL_SECRET || process.env.TRACKING_TOKEN_SECRET || 'fallback-secret-do-not-use-in-prod';
-  
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(payload)
-    .digest('hex');
-
-  if (signature !== expectedSignature) {
-    console.warn(`🚨 [Self-Ping] SECURITY ALERT: Invalid HMAC signature.`);
-    res.status(403).json({ error: 'Invalid HMAC signature' });
-    return;
-  }
-
-  console.log(`💓 [Self-Ping] Received valid self keep-alive ping.`);
-
-  res.status(200).json({
-    status: 'alive',
-    timestamp: new Date().toISOString(),
-    message: 'Self Keep-alive acknowledged'
-  });
+/** Internal diagnostics for the DIAGNOSTICS-role telemetry dashboard (not publicly routed). */
+export function getHeartbeatStats() {
+  return { lastHeartbeat, totalHeartbeatsToday, timeSinceLastHeartbeatMs: Date.now() - lastHeartbeatTime };
 }
