@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import type { Request, Response, NextFunction } from 'express';
 import { env } from '../config/env';
 import { getFirebaseAuth, getFirestore } from '../config/firebase';
+import { cache } from '../config/cache';
 
 /**
  * Authentication model for Olive Pizza AI
@@ -101,15 +102,10 @@ async function resolveUserPrincipal(idToken: string): Promise<AiPrincipal | null
   return { kind: 'user', uid: decoded.uid, email, role, franchiseId, branchId, idToken };
 }
 
-// ── Service (HMAC) verification ────────────────────────────────────────────────
+// ── Service (HMAC) verification with Shared Redis Replay Protection ─────────────
 const SIGNATURE_WINDOW_MS = 2 * 60 * 1000;
-const seenSignatures = new Map<string, number>(); // replay cache within the validity window
 
-function pruneSeen(now: number) {
-  for (const [sig, ts] of seenSignatures) if (now - ts > SIGNATURE_WINDOW_MS) seenSignatures.delete(sig);
-}
-
-export function verifyServiceSignature(req: Request): boolean {
+export async function verifyServiceSignature(req: Request): Promise<boolean> {
   const secret = env.AI_GATEWAY_SECRET;
   if (!secret) return false; // no secret configured => service auth disabled, never a default
 
@@ -136,9 +132,13 @@ export function verifyServiceSignature(req: Request): boolean {
   }
   if (!ok) return false;
 
-  pruneSeen(now);
-  if (seenSignatures.has(signature)) return false; // replay
-  seenSignatures.set(signature, now);
+  // Single Source of Truth: Distributed Redis Replay Nonce with fail-closed semantics
+  const acquired = await cache.acquireReplayNonce(signature, 120);
+  if (!acquired) {
+    console.warn(`[AI Auth] Replay attack detected or shared Redis rejected nonce for signature: ${signature.slice(0, 10)}...`);
+    return false; // Replay detected or Redis down (FAIL CLOSED)
+  }
+
   return true;
 }
 
@@ -152,7 +152,7 @@ function bearer(req: Request): string | null {
 async function attachPrincipal(req: Request): Promise<{ attempted: boolean }> {
   if (req.principal) return { attempted: true };
 
-  if (verifyServiceSignature(req)) {
+  if (await verifyServiceSignature(req)) {
     req.principal = { kind: 'service', uid: 'service:olive-main-backend', role: 'service' };
     // A service call may carry the end-user's token for per-user actions; verify it too.
     const t = bearer(req);
@@ -211,8 +211,9 @@ export function requireRole(roles: readonly string[], opts: { allowService?: boo
 }
 
 /** Server-to-server only (webhooks). End-user tokens are NOT accepted. */
-export function requireService(req: Request, res: Response, next: NextFunction): void {
-  if (!verifyServiceSignature(req)) {
+export async function requireService(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const isValid = await verifyServiceSignature(req);
+  if (!isValid) {
     res.status(401).json({ error: 'Valid service signature required', code: 'SERVICE_AUTH_REQUIRED' });
     return;
   }

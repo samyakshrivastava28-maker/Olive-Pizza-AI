@@ -75,4 +75,29 @@ export const cache = {
     }
     memCache.flushAll();
   },
+
+  /**
+   * Distributed atomic replay protection nonce using Redis SET ... NX EX.
+   * Enforces FAIL CLOSED: If Redis is unavailable, returns false (rejects request).
+   */
+  async acquireReplayNonce(signature: string, ttlSeconds = 120): Promise<boolean> {
+    if (!_redisClient) {
+      // In development/test mode without REDIS_URL configured, allow fallback if explicitly in test
+      if (process.env.NODE_ENV === 'test' && !env.REDIS_URL) {
+        const key = `replay:ai:${signature}`;
+        if (memCache.get(key)) return false;
+        memCache.set(key, 1, ttlSeconds);
+        return true;
+      }
+      console.error('[AI Auth Replay] Shared Redis is required for service HMAC replay prevention. Failing closed.');
+      return false; // FAIL CLOSED
+    }
+    try {
+      const res = await _redisClient.set(`replay:ai:${signature}`, '1', 'EX', ttlSeconds, 'NX');
+      return res === 'OK';
+    } catch (err: any) {
+      console.error('[AI Auth Replay] Redis error during atomic nonce acquisition. Failing closed:', err?.message);
+      return false; // FAIL CLOSED
+    }
+  },
 };
