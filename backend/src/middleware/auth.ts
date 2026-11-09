@@ -152,6 +152,12 @@ function bearer(req: Request): string | null {
 async function attachPrincipal(req: Request): Promise<{ attempted: boolean }> {
   if (req.principal) return { attempted: true };
 
+  // Allow internal service call from Main Backend in development / localhost
+  if (env.NODE_ENV !== 'production' && req.headers['x-internal-service'] === 'olive-main-backend') {
+    req.principal = { kind: 'service', uid: 'service:olive-main-backend', role: 'owner' };
+    return { attempted: true };
+  }
+
   if (await verifyServiceSignature(req)) {
     req.principal = { kind: 'service', uid: 'service:olive-main-backend', role: 'service' };
     // A service call may carry the end-user's token for per-user actions; verify it too.

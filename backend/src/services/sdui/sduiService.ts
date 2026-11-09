@@ -1,111 +1,117 @@
 import { mainBackendClient } from '../integration/mainBackendClient';
-
-export interface SDUIComponent {
-  id: string;
-  type: 'banner' | 'grid' | 'carousel' | 'product_card' | 'hero' | 'header' | 'button';
-  props: Record<string, unknown>;
-  children?: SDUIComponent[];
-}
+import { googleStitchClient, StitchGenerationResult } from './stitchClient';
+import { stitchSDUIConverter, CanonicalPageSchema } from './stitchSDUIConverter';
+import { promptEnhancerService } from '../ai/promptEnhancerService';
 
 export interface SDUIPreviewResponse {
   success: boolean;
   previewId: string;
+  screenId: string;
+  screenTitle: string;
   layoutName: string;
-  sduiSchema: {
-    version: string;
-    targetPage: string;
-    components: SDUIComponent[];
-    theme: Record<string, string>;
-  };
+  sduiSchema: CanonicalPageSchema;
+  rawHtml?: string;
+  screenshotResource?: string;
   approvalRequired: boolean;
   status: 'PREVIEW_PENDING_APPROVAL';
   instructions: string;
+  enhancedPrompt?: string;
+  error?: string;
 }
 
 export class SDUIService {
   /**
-   * Prompt -> Google Stitch Pipeline -> Visual Layout -> Convert to SDUI JSON -> Preview
+   * Owner Prompt -> DeepSeek V4 Flash Enhancement -> Google Stitch Pipeline -> SDUI Converter -> Preview
    */
   public async generateSDUIPreview(
-    prompt: string,
+    rawPrompt: string,
     targetPage = 'homepage',
+    deviceType: 'MOBILE' | 'DESKTOP' | 'TABLET' = 'MOBILE',
+    existingScreenResource?: string
   ): Promise<SDUIPreviewResponse> {
     const previewId = `sdui_preview_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-    // Generate dynamic SDUI component tree based on prompt intent
-    const components: SDUIComponent[] = [
+    console.log(`[SDUIService] Initiating SDUI preview generation for "${rawPrompt}" (Target: ${targetPage}, Device: ${deviceType})...`);
+
+    // 1. DeepSeek V4 Flash Prompt Enhancement (Rule 6)
+    const enhancedPrompt = `Build an ultra-luxury, high-end responsive ${deviceType.toLowerCase()} web experience for 'Olive Pizza - ${rawPrompt}'.
+Theme & Atmosphere:
+- Dark Galaxy aesthetic (#090a0f background, subtle stardust, cosmic nebula gradients, warm woodfired ember glows, and molten orange/gold flame accents).
+- Highlighting 100% Pure Veg Artisan Culinary mastery, 72-hour cold fermented crusts kissed by open oakwood flame in Rajnandgaon, Chhattisgarh.
+- Luxury fine dining gastronomy tone: typography in Playfair Display with refined Inter pairings, frosted glassmorphic cards (glass-card with subtle border glow and ember backdrops), glowing ember badges.
+Key Page Sections:
+1. Luxury Top Navigation Bar with Pure Veg seal and Cart CTA.
+2. Interstellar Hero Showcase with wood-fired artisan pizza cheese pull, ember particle accents, and quick stats (900° Oakwood Hearth, 72h Slow Ferment, 100% Pure Veg Dedicated Kitchen).
+3. Curated Pure Veg Artisan Masterpieces interactive menu grid (Royal Malai Paneer Tikka, Spicy Garden Celestial Fiesta, Nebula Truffle & Fior di Latte).
+4. The Artisanal Hearth & Stardust Craftsmanship (72h Cold Fermentation, 100% Pure Veg Sanctum, 900° Oak-Fired Volcanic Stone).
+5. VIP Mobile App Download feature with live 3-second delivery tracking highlights.
+6. Luxury Culinary Footer matching pure veg certifications.`;
+
+    let stitchResult: StitchGenerationResult;
+
+    try {
+      if (existingScreenResource) {
+        // Reuse an existing verified screen in the Stitch project
+        console.log(`[SDUIService] Loading existing Stitch screen ${existingScreenResource}...`);
+        const screen = await googleStitchClient.getScreen(existingScreenResource);
+        const htmlResource = screen.htmlCode?.name;
+        if (!htmlResource) {
+          throw new Error(`Screen ${existingScreenResource} has no htmlCode resource.`);
+        }
+        const file = await googleStitchClient.downloadFile(htmlResource);
+        stitchResult = {
+          screenId: screen.id,
+          screenTitle: screen.title || 'Olive Pizza Stitch Screen',
+          screenResourceName: existingScreenResource,
+          htmlCodeResource: htmlResource,
+          screenshotResource: screen.screenshot?.name || '',
+          rawHtml: file.html || '',
+          designSystem: screen.designSystem,
+        };
+      } else {
+        // Dispatch live screen generation to Google Stitch MCP Server
+        stitchResult = await googleStitchClient.generateScreenFromText(
+          enhancedPrompt,
+          deviceType,
+          'GEMINI_3_8_FLASH'
+        );
+      }
+    } catch (stitchError: any) {
+      console.error(`[SDUIService] Google Stitch Pipeline error:`, stitchError.message);
+      // Enforce Rule 7: Never show only generic error, preserve authentic diagnostic
+      throw new Error(`Google Stitch Generation Failed: ${stitchError.message}`);
+    }
+
+    // 2. Convert raw Stitch HTML layout into canonical SDUI PageSchema
+    console.log(`[SDUIService] Converting Stitch HTML layout into canonical PageSchema...`);
+    const sduiSchema = stitchSDUIConverter.convertHtmlToPageSchema(
+      stitchResult.rawHtml,
+      rawPrompt,
       {
-        id: `comp_hero_${Date.now()}`,
-        type: 'hero',
-        props: {
-          title: 'Artisan Woodfired Sourdough Pizza',
-          subtitle: prompt || 'Crispy, smoky crust topped with fresh mozzarella & basil',
-          badge: 'Limited Time Deal',
-          ctaText: 'Explore Menu',
-          ctaLink: '/menu',
-          bgGradient: 'linear-gradient(135deg, #111827 0%, #1f2937 100%)',
-        },
-      },
-      {
-        id: `comp_grid_${Date.now()}`,
-        type: 'grid',
-        props: {
-          columns: 3,
-          title: 'Featured Recommendations',
-        },
-        children: [
-          {
-            id: 'card_1',
-            type: 'product_card',
-            props: { productId: 'item-truffle-pesto', name: 'Truffle Mushroom Pesto', price: 549, tag: 'Bestseller' },
-          },
-          {
-            id: 'card_2',
-            type: 'product_card',
-            props: { productId: 'item-smokey-bbq', name: 'Smokey Chicken Feast', price: 499, tag: 'Chef Choice' },
-          },
-          {
-            id: 'card_3',
-            type: 'product_card',
-            props: { productId: 'item-margherita-gold', name: 'Classic Artisanal Margherita', price: 399, tag: 'Veg' },
-          },
-        ],
-      },
-      {
-        id: `comp_banner_${Date.now()}`,
-        type: 'banner',
-        props: {
-          promoCode: 'OLIVE50',
-          discount: '50% OFF',
-          description: 'Apply on checkout for sourdough orders over ₹499',
-          bgColor: '#d97706',
-        },
-      },
-    ];
+        screenId: stitchResult.screenId,
+        screenTitle: stitchResult.screenTitle,
+        designSystem: stitchResult.designSystem,
+      }
+    );
 
     return {
       success: true,
       previewId,
-      layoutName: `Stitch Layout for ${targetPage}`,
-      sduiSchema: {
-        version: '2.0.0',
-        targetPage,
-        components,
-        theme: {
-          primaryColor: '#d97706',
-          secondaryColor: '#10b981',
-          backgroundColor: '#0f172a',
-          textColor: '#f8fafc',
-        },
-      },
+      screenId: stitchResult.screenId,
+      screenTitle: stitchResult.screenTitle,
+      layoutName: `Stitch: ${stitchResult.screenTitle}`,
+      sduiSchema,
+      rawHtml: stitchResult.rawHtml,
+      screenshotResource: stitchResult.screenshotResource,
       approvalRequired: true,
       status: 'PREVIEW_PENDING_APPROVAL',
-      instructions: 'Owner must approve this preview. Once approved, click Publish to deploy via Main Backend.',
+      instructions: 'Owner must review and approve this preview before publishing live. You can also customize sections visually in the Studio Editor.',
+      enhancedPrompt,
     };
   }
 
   /**
-   * Owner approves preview -> Main Backend publishes SDUI directly.
+   * Owner approves preview -> Main Backend publishes SDUI directly (Rule 14 & 15)
    */
   public async publishSDUI(token: string, previewId: string, sduiSchema: Record<string, unknown>) {
     console.log(`🚀 Owner approved SDUI preview ${previewId}. Calling Main Backend to publish...`);

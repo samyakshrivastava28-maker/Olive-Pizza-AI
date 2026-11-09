@@ -639,9 +639,14 @@ import { mainBackendClient } from '../services/integration/mainBackendClient';
 import { knowledgeSyncService } from '../services/ai/knowledgeSyncService';
 
 export async function handleGenerateSDUI(req: Request, res: Response): Promise<void> {
-  const { prompt = 'Featured Woodfired Pizza Menu', targetPage = 'homepage' } = req.body;
-  const sduiPreview = await sduiService.generateSDUIPreview(prompt, targetPage);
-  res.json(sduiPreview);
+  try {
+    const { prompt = 'Featured Woodfired Pizza Menu', targetPage = 'homepage', deviceType = 'MOBILE', existingScreenResource } = req.body;
+    const sduiPreview = await sduiService.generateSDUIPreview(prompt, targetPage, deviceType, existingScreenResource);
+    res.json(sduiPreview);
+  } catch (err: any) {
+    console.error('[handleGenerateSDUI] Error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
 }
 
 export async function handlePublishSDUI(req: Request, res: Response): Promise<void> {
